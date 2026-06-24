@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 /* ─── Design tokens ─────────────────────────────── */
 const C = {
@@ -98,11 +99,6 @@ const PLAN = [
   { date: "6/29", day: "日", workout: WORKOUTS[2], strava: null, rest: false },
 ];
 
-const WEIGHT_LOG = [
-  { d: "5/22", w: 75.2 }, { d: "5/29", w: 74.8 }, { d: "6/5", w: 74.5 },
-  { d: "6/12", w: 73.9 }, { d: "6/19", w: 73.4 }, { d: "6/22", w: 73.1 },
-];
-
 /* ─── Tiny helpers ───────────────────────────────── */
 function Badge({ label, color, bg }) {
   return (
@@ -169,8 +165,8 @@ function Card({ children, style = {} }) {
 /* ─── Pages ──────────────────────────────────────── */
 
 // ── Home ──
-function HomePage({ ftp, setFtp }) {
-  const pwr2wt = (ftp / 73.1).toFixed(2);
+function HomePage({ ftp, latestWeight }) {
+  const pwr2wt = latestWeight ? (ftp / latestWeight).toFixed(2) : "—";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* FTP banner */}
@@ -264,7 +260,6 @@ function PlanPage({ ftp }) {
   const [selected, setSelected] = useState(null);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* AI提案バナー */}
       <div style={{
         background: `linear-gradient(120deg, ${C.purple}30, ${C.blue}20)`,
         borderRadius: 14, padding: "14px 16px",
@@ -292,7 +287,6 @@ function PlanPage({ ftp }) {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {/* Date */}
               <div style={{ width: 36, textAlign: "center", flexShrink: 0 }}>
                 <div style={{ fontSize: 10, color: C.muted }}>{day.date}</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: i === 3 ? C.blue : C.text }}>{day.day}</div>
@@ -314,7 +308,6 @@ function PlanPage({ ftp }) {
                 </div>
               )}
 
-              {/* Strava status */}
               {day.strava ? (
                 <div style={{ flexShrink: 0, textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>✓ 完了</div>
@@ -325,7 +318,6 @@ function PlanPage({ ftp }) {
               )}
             </div>
 
-            {/* Strava diff */}
             {day.strava && (
               <div style={{
                 marginTop: 10, padding: "8px 10px",
@@ -350,7 +342,6 @@ function PlanPage({ ftp }) {
             )}
           </div>
 
-          {/* Detail expand */}
           {selected === i && day.workout && (
             <div style={{
               background: C.surface, borderRadius: "0 0 14px 14px",
@@ -377,33 +368,78 @@ function PlanPage({ ftp }) {
   );
 }
 
-// ── Weight ──
-function WeightPage() {
-  const [log, setLog] = useState(WEIGHT_LOG);
+// ── Weight ── ★ Supabase対応
+function WeightPage({ onWeightUpdate }) {
+  const [log, setLog] = useState([]);
   const [input, setInput] = useState("");
-  const latest = log[log.length - 1].w;
-  const start = log[0].w;
-  const diff = (latest - start).toFixed(1);
-  const minW = Math.min(...log.map(d => d.w)) - 1;
-  const maxW = Math.max(...log.map(d => d.w)) + 1;
-  const range = maxW - minW;
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  function addWeight() {
+  // 起動時にSupabaseからデータ取得
+  useEffect(() => {
+    fetchWeights();
+  }, []);
+
+  async function fetchWeights() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("weight_log")
+      .select("*")
+      .order("recorded_at", { ascending: true });
+    if (!error && data.length > 0) {
+      const formatted = data.map(d => ({
+        id: d.id,
+        d: new Date(d.recorded_at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }),
+        w: parseFloat(d.weight),
+      }));
+      setLog(formatted);
+      onWeightUpdate(formatted[formatted.length - 1].w);
+    }
+    setLoading(false);
+  }
+
+  async function addWeight() {
     const v = parseFloat(input);
     if (!v || v < 30 || v > 200) return;
-    const today = "6/22";
-    setLog([...log.filter(d => d.d !== today), { d: today, w: v }]);
-    setInput("");
+    setSaving(true);
+    const today = new Date().toISOString().split("T")[0];
+    // 同じ日付のデータを先に削除してから挿入
+await supabase
+.from("weight_log")
+.delete()
+.eq("recorded_at", today);
+
+const { error } = await supabase
+.from("weight_log")
+.insert({ weight: v, recorded_at: today });
+    if (error) {
+      setMsg("❌ 保存に失敗しました");
+    } else {
+      setMsg("✅ 保存しました！");
+      setInput("");
+      await fetchWeights();
+    }
+    setSaving(false);
+    setTimeout(() => setMsg(""), 3000);
   }
+
+  const displayLog = log.length > 0 ? log : [{ d: "—", w: 0 }];
+  const latest = displayLog[displayLog.length - 1].w;
+  const start = displayLog[0].w;
+  const diff = (latest - start).toFixed(1);
+  const minW = Math.min(...displayLog.map(d => d.w), 69) - 1;
+  const maxW = Math.max(...displayLog.map(d => d.w), 76) + 1;
+  const range = maxW - minW || 1;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* Stats */}
       <div style={{ display: "flex", gap: 10 }}>
         {[
-          { label: "現在", val: `${latest} kg`, color: C.text },
+          { label: "現在", val: latest ? `${latest} kg` : "—", color: C.text },
           { label: "目標", val: "70.0 kg", color: C.cyan },
-          { label: "変化（1ヶ月）", val: `${diff} kg`, color: diff < 0 ? C.green : C.red },
+          { label: "変化", val: latest && start ? `${diff} kg` : "—", color: parseFloat(diff) < 0 ? C.green : C.red },
         ].map((s, i) => (
           <Card key={i} style={{ flex: 1, padding: "12px 14px" }}>
             <div style={{ fontSize: 10, color: C.sub, marginBottom: 4 }}>{s.label}</div>
@@ -415,51 +451,47 @@ function WeightPage() {
       {/* Chart */}
       <Card>
         <SectionTitle>体重推移</SectionTitle>
-        <div style={{ position: "relative", height: 120 }}>
-          <svg width="100%" height="100%" viewBox={`0 0 300 120`} preserveAspectRatio="none">
-            {/* Grid */}
-            {[0, 0.25, 0.5, 0.75, 1].map((v, i) => (
-              <line key={i} x1={0} y1={v * 120} x2={300} y2={v * 120} stroke={C.border} strokeWidth={1} />
-            ))}
-            {/* Gradient area */}
-            <defs>
-              <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={C.cyan} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={C.cyan} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <polygon
-              points={[
-                ...log.map((d, i) => `${(i / (log.length - 1)) * 300},${((maxW - d.w) / range) * 110 + 5}`),
-                `300,120`, `0,120`
-              ].join(" ")}
-              fill="url(#wgrad)"
-            />
-            {/* Line */}
-            <polyline
-              points={log.map((d, i) => `${(i / (log.length - 1)) * 300},${((maxW - d.w) / range) * 110 + 5}`).join(" ")}
-              fill="none" stroke={C.cyan} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
-            />
-            {/* Dots */}
-            {log.map((d, i) => (
-              <circle key={i} cx={(i / (log.length - 1)) * 300} cy={((maxW - d.w) / range) * 110 + 5}
-                r={4} fill={C.bg} stroke={C.cyan} strokeWidth={2} />
-            ))}
-            {/* Target line */}
-            <line x1={0} y1={((maxW - 70) / range) * 110 + 5} x2={300} y2={((maxW - 70) / range) * 110 + 5}
-              stroke={C.green} strokeWidth={1} strokeDasharray="4,3" />
-          </svg>
-          {/* Y labels */}
-          <div style={{ position: "absolute", top: 0, right: 0, display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", paddingRight: 0 }}>
-            {[maxW, minW + range * 0.75, minW + range * 0.5, minW + range * 0.25, minW].map((v, i) => (
-              <div key={i} style={{ fontSize: 9, color: C.muted }}>{v.toFixed(0)}</div>
-            ))}
-          </div>
-        </div>
-        {/* X labels */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-          {log.map((d, i) => <div key={i} style={{ fontSize: 9, color: C.muted }}>{d.d}</div>)}
-        </div>
+        {loading ? (
+          <div style={{ textAlign: "center", color: C.muted, padding: 20 }}>読み込み中...</div>
+        ) : log.length < 2 ? (
+          <div style={{ textAlign: "center", color: C.muted, padding: 20 }}>データを記録すると表示されます</div>
+        ) : (
+          <>
+            <div style={{ position: "relative", height: 120 }}>
+              <svg width="100%" height="100%" viewBox="0 0 300 120" preserveAspectRatio="none">
+                {[0, 0.25, 0.5, 0.75, 1].map((v, i) => (
+                  <line key={i} x1={0} y1={v * 120} x2={300} y2={v * 120} stroke={C.border} strokeWidth={1} />
+                ))}
+                <defs>
+                  <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={C.cyan} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={C.cyan} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <polygon
+                  points={[
+                    ...log.map((d, i) => `${(i / (log.length - 1)) * 300},${((maxW - d.w) / range) * 110 + 5}`),
+                    "300,120", "0,120"
+                  ].join(" ")}
+                  fill="url(#wgrad)"
+                />
+                <polyline
+                  points={log.map((d, i) => `${(i / (log.length - 1)) * 300},${((maxW - d.w) / range) * 110 + 5}`).join(" ")}
+                  fill="none" stroke={C.cyan} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                />
+                {log.map((d, i) => (
+                  <circle key={i} cx={(i / (log.length - 1)) * 300} cy={((maxW - d.w) / range) * 110 + 5}
+                    r={4} fill={C.bg} stroke={C.cyan} strokeWidth={2} />
+                ))}
+                <line x1={0} y1={((maxW - 70) / range) * 110 + 5} x2={300} y2={((maxW - 70) / range) * 110 + 5}
+                  stroke={C.green} strokeWidth={1} strokeDasharray="4,3" />
+              </svg>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+              {log.map((d, i) => <div key={i} style={{ fontSize: 9, color: C.muted }}>{d.d}</div>)}
+            </div>
+          </>
+        )}
       </Card>
 
       {/* Input */}
@@ -476,44 +508,78 @@ function WeightPage() {
             }}
           />
           <span style={{ alignSelf: "center", color: C.sub, fontSize: 14 }}>kg</span>
-          <button onClick={addWeight} style={{
-            background: C.blue, color: "#fff", border: "none",
-            borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-          }}>記録</button>
+          <button onClick={addWeight} disabled={saving} style={{
+            background: saving ? C.muted : C.blue, color: "#fff", border: "none",
+            borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700,
+            cursor: saving ? "not-allowed" : "pointer",
+          }}>{saving ? "保存中..." : "記録"}</button>
         </div>
+        {msg && <div style={{ marginTop: 8, fontSize: 12, color: msg.includes("✅") ? C.green : C.red }}>{msg}</div>}
       </Card>
 
       {/* Log */}
       <Card>
         <SectionTitle>履歴</SectionTitle>
-        {[...log].reverse().map((d, i) => (
-          <div key={i} style={{
-            display: "flex", justifyContent: "space-between",
-            padding: "8px 0", borderBottom: i < log.length - 1 ? `1px solid ${C.border}` : "none",
-          }}>
-            <span style={{ fontSize: 13, color: C.sub }}>{d.d}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{d.w} kg</span>
-          </div>
-        ))}
+        {loading ? (
+          <div style={{ color: C.muted, fontSize: 12 }}>読み込み中...</div>
+        ) : log.length === 0 ? (
+          <div style={{ color: C.muted, fontSize: 12 }}>まだデータがありません</div>
+        ) : (
+          [...log].reverse().map((d, i) => (
+            <div key={i} style={{
+              display: "flex", justifyContent: "space-between",
+              padding: "8px 0", borderBottom: i < log.length - 1 ? `1px solid ${C.border}` : "none",
+            }}>
+              <span style={{ fontSize: 13, color: C.sub }}>{d.d}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{d.w} kg</span>
+            </div>
+          ))
+        )}
       </Card>
     </div>
   );
 }
 
-// ── Goals ──
-function GoalsPage({ ftp, setFtp }) {
+// ── Goals ── ★ Supabase対応
+function GoalsPage({ ftp, setFtp, latestWeight }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(ftp));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  function saveFtp() {
+  async function saveFtp() {
     const v = parseInt(draft);
-    if (v > 0) setFtp(v);
-    setEditing(false);
+    if (!v || v <= 0) return;
+    setSaving(true);
+    const today = new Date().toISOString().split("T")[0];
+    const { error } = await supabase
+      .from("ftp_log")
+      .insert({ ftp: v, recorded_at: today });
+    if (error) {
+      setMsg("❌ 保存に失敗しました");
+    } else {
+      setFtp(v);
+      setEditing(false);
+      setMsg("✅ FTPを保存しました！");
+    }
+    setSaving(false);
+    setTimeout(() => setMsg(""), 3000);
   }
+
+  const weightDiff = latestWeight ? (latestWeight - 70).toFixed(1) : "—";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <SectionTitle>目標設定</SectionTitle>
+
+      {msg && (
+        <div style={{
+          padding: "10px 14px", borderRadius: 10, fontSize: 12,
+          background: msg.includes("✅") ? `${C.green}20` : `${C.red}20`,
+          color: msg.includes("✅") ? C.green : C.red,
+          border: `1px solid ${msg.includes("✅") ? C.green : C.red}40`,
+        }}>{msg}</div>
+      )}
 
       {/* FTP goal */}
       <Card>
@@ -522,32 +588,36 @@ function GoalsPage({ ftp, setFtp }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>FTP（Functional Threshold Power）</div>
             <div style={{ fontSize: 11, color: C.sub }}>60分継続できる最大平均パワー</div>
           </div>
-          <button onClick={() => setEditing(!editing)} style={{
+          <button onClick={() => { setEditing(!editing); setMsg(""); }} style={{
             background: editing ? C.green : C.surface, color: editing ? "#fff" : C.sub,
             border: `1px solid ${editing ? C.green : C.border}`,
             borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-          }}>{editing ? "完了" : "編集"}</button>
+          }}>{editing ? "キャンセル" : "編集"}</button>
         </div>
 
         <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
-          <div style={{
-            flex: 1, background: C.surface, borderRadius: 12, padding: "14px",
-            border: `1px solid ${C.border}`,
-          }}>
+          <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: "14px", border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 10, color: C.sub, marginBottom: 4 }}>現在のFTP</div>
             {editing ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input value={draft} onChange={e => setDraft(e.target.value)}
-                  style={{
-                    background: "transparent", border: "none", outline: "none",
-                    fontSize: 28, fontWeight: 900, color: C.text, width: 80,
-                  }} />
-                <span style={{ color: C.sub }}>W</span>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input value={draft} onChange={e => setDraft(e.target.value)}
+                    style={{
+                      background: "transparent", border: "none", outline: "none",
+                      fontSize: 28, fontWeight: 900, color: C.text, width: 80,
+                    }} />
+                  <span style={{ color: C.sub }}>W</span>
+                </div>
+                <button onClick={saveFtp} disabled={saving} style={{
+                  marginTop: 8, background: saving ? C.muted : C.blue,
+                  color: "#fff", border: "none", borderRadius: 6,
+                  padding: "6px 12px", fontSize: 11, fontWeight: 700,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}>{saving ? "保存中..." : "保存"}</button>
               </div>
             ) : (
               <div style={{ fontSize: 28, fontWeight: 900, color: C.text }}>{ftp}<span style={{ fontSize: 14, color: C.sub, marginLeft: 4 }}>W</span></div>
             )}
-            {editing && <button onClick={saveFtp} style={{ marginTop: 8, background: C.blue, color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>保存</button>}
           </div>
           <div style={{ flex: 1, background: C.surface, borderRadius: 12, padding: "14px", border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 10, color: C.sub, marginBottom: 4 }}>目標FTP</div>
@@ -567,7 +637,7 @@ function GoalsPage({ ftp, setFtp }) {
       {/* Other goals */}
       {[
         { icon: "🏆", label: "レース目標", val: "グランフォンドKyoto 2025", sub: "2025年9月14日", color: C.orange },
-        { icon: "⚖️", label: "目標体重", val: "70.0 kg", sub: "現在 73.1 kg / 残り -3.1 kg", color: C.cyan },
+        { icon: "⚖️", label: "目標体重", val: "70.0 kg", sub: latestWeight ? `現在 ${latestWeight} kg / 残り ${weightDiff} kg` : "体重を記録してください", color: C.cyan },
         { icon: "📅", label: "週間トレーニング", val: "週4回", sub: "平均週3.2回達成中", color: C.green },
       ].map((g, i) => (
         <Card key={i} style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -603,12 +673,26 @@ const TABS = [
 export default function App() {
   const [tab, setTab] = useState("home");
   const [ftp, setFtp] = useState(300);
+  const [latestWeight, setLatestWeight] = useState(null);
+
+  // 起動時にSupabaseから最新FTPを取得
+  useEffect(() => {
+    async function fetchLatestFtp() {
+      const { data } = await supabase
+        .from("ftp_log")
+        .select("ftp")
+        .order("recorded_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) setFtp(data[0].ftp);
+    }
+    fetchLatestFtp();
+  }, []);
 
   const pages = {
-    home:   <HomePage ftp={ftp} setFtp={setFtp} />,
+    home:   <HomePage ftp={ftp} latestWeight={latestWeight} />,
     plan:   <PlanPage ftp={ftp} />,
-    weight: <WeightPage />,
-    goals:  <GoalsPage ftp={ftp} setFtp={setFtp} />,
+    weight: <WeightPage onWeightUpdate={setLatestWeight} />,
+    goals:  <GoalsPage ftp={ftp} setFtp={setFtp} latestWeight={latestWeight} />,
   };
 
   return (
