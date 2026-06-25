@@ -701,6 +701,7 @@ function StravaPage() {
       { headers: { Authorization: `Bearer ${t}` } }
     );
     const data = await res.json();
+    console.log("活動タイプ:", data.map(a => a.type));
     if (Array.isArray(data)) setActivities(data);
     setLoading(false);
   }
@@ -763,7 +764,15 @@ function StravaPage() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>{act.name}</div>
                   <div style={{ fontSize: 11, color: C.sub }}>{new Date(act.start_date_local).toLocaleDateString("ja-JP")}</div>
                 </div>
-                <Badge label={act.type === "Ride" ? "🚴 ライド" : "🏃 ラン"} color={C.orange} bg={`${C.orange}22`} />
+                <Badge 
+  label={
+    act.type === "Ride" || act.type === "VirtualRide" ? "🚴 ライド" : 
+    act.type === "Run" || act.type === "VirtualRun" ? "🏃 ラン" : 
+    "🏋️ その他"
+  } 
+  color={C.orange} 
+  bg={`${C.orange}22`} 
+/>
               </div>
               <div style={{ display: "flex", gap: 16 }}>
                 {[
