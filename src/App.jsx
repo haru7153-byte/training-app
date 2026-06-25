@@ -256,9 +256,218 @@ function HomePage({ ftp, latestWeight }) {
 }
 
 // ── Plan ──
-function PlanPage({ ftp }) {
+function PlanPage({ ftp, latestWeight }) {
   const [selected, setSelected] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [aiPlan, setAiPlan] = useState(null);
+  const [error, setError] = useState("");
+
+  async function generatePlan() {
+    setGenerating(true);
+    setError("");
+    try {
+      const res = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ftp,
+          targetFtp: 320,
+          weight: latestWeight || 73,
+          targetWeight: 70,
+          raceName: "グランフォンドKyoto 2025",
+          raceDate: "2025-09-14",
+          weeksAvailable: 12,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAiPlan(data);
+    } catch (e) {
+      setError("生成に失敗しました。もう一度試してください。");
+    }
+    setGenerating(false);
+  }
+
+  const ZONE_COLORS = {
+    "Active Recovery": "#64748B",
+    "Endurance": "#3B82F6",
+    "Tempo": "#10B981",
+    "Sweet Spot": "#EAB308",
+    "Threshold": "#F97316",
+    "VO2max": "#EF4444",
+  };
+
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* AI生成ボタン */}
+      <div style={{
+        background: `linear-gradient(120deg, ${C.purple}30, ${C.blue}20)`,
+        borderRadius: 14, padding: "14px 16px",
+        border: `1px solid ${C.purple}40`,
+      }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 28 }}>🤖</div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>AI コーチ</div>
+            <div style={{ fontSize: 11, color: C.sub }}>FTP・体重・目標から最適な週間プランを生成</div>
+          </div>
+        </div>
+        <button onClick={generatePlan} disabled={generating} style={{
+          width: "100%", background: generating ? C.muted : C.purple,
+          color: "#fff", border: "none", borderRadius: 10,
+          padding: "12px", fontSize: 13, fontWeight: 700,
+          cursor: generating ? "not-allowed" : "pointer",
+        }}>
+          {generating ? "⏳ 生成中..." : "✨ 今週のプランを生成する"}
+        </button>
+        {error && <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>{error}</div>}
+      </div>
+
+      {/* AI生成プラン */}
+      {aiPlan && (
+        <>
+          <div style={{
+            background: `${C.green}15`, borderRadius: 14, padding: "12px 16px",
+            border: `1px solid ${C.green}30`,
+          }}>
+            <div style={{ fontSize: 12, color: C.green, fontWeight: 700, marginBottom: 4 }}>
+              📋 {aiPlan.phase}
+            </div>
+            <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>{aiPlan.advice}</div>
+            <div style={{ fontSize: 11, color: C.sub }}>
+              週間目標TSS: <b style={{ color: C.text }}>{aiPlan.weeklyTSS}</b>
+            </div>
+          </div>
+
+          <SectionTitle>AI生成スケジュール</SectionTitle>
+          {aiPlan.days.map((day, i) => (
+            <div key={i} style={{
+              background: C.card, borderRadius: 14, padding: "12px 14px",
+              border: `1px solid ${C.border}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, textAlign: "center", flexShrink: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{day.day}</div>
+                </div>
+                {day.type === "rest" ? (
+                  <div style={{ fontSize: 12, color: C.muted }}>🛌 休養日</div>
+                ) : (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>{day.name}</div>
+                    <div style={{ display: "flex", gap: 5, marginBottom: 4, flexWrap: "wrap" }}>
+                      <PlatformBadge platform={day.platform} />
+                      <Badge label={`${day.duration}分`} color={C.sub} bg={`${C.muted}30`} />
+                      <Badge label={`TSS ${day.tss}`} color={C.green} bg={`${C.green}22`} />
+                      <Badge
+                        label={day.zone}
+                        color={ZONE_COLORS[day.zone] || C.blue}
+                        bg={`${ZONE_COLORS[day.zone] || C.blue}22`}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{day.description}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* 既存プラン */}
+      {!aiPlan && (
+        <>
+          <SectionTitle>今週のスケジュール（サンプル）</SectionTitle>
+          {PLAN.map((day, i) => (
+            <div key={i}>
+              <div
+                onClick={() => !day.rest && day.workout && setSelected(selected === i ? null : i)}
+                style={{
+                  background: selected === i ? C.cardHi : C.card,
+                  borderRadius: 14, padding: "12px 14px",
+                  border: `1px solid ${selected === i ? C.borderHi : C.border}`,
+                  cursor: day.workout ? "pointer" : "default",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, color: C.muted }}>{day.date}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: i === 3 ? C.blue : C.text }}>{day.day}</div>
+                  </div>
+                  {day.rest ? (
+                    <div style={{ flex: 1, fontSize: 12, color: C.muted }}>🛌 休養日</div>
+                  ) : (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.workout.name}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+                        <PlatformBadge platform={day.workout.platform} />
+                        <Badge label={`${day.workout.duration}分`} color={C.sub} bg={`${C.muted}30`} />
+                        <Badge label={day.workout.type} color={day.workout.color} bg={`${day.workout.color}22`} />
+                      </div>
+                      <WorkoutBar blocks={day.workout.blocks} ftp={ftp} compact />
+                    </div>
+                  )}
+                  {day.strava ? (
+                    <div style={{ flexShrink: 0, textAlign: "right" }}>
+                      <div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>✓ 完了</div>
+                      <div style={{ fontSize: 10, color: C.sub }}>NP {day.strava.watts}W</div>
+                    </div>
+                  ) : !day.rest && (
+                    <div style={{ flexShrink: 0, fontSize: 18, color: C.muted }}>›</div>
+                  )}
+                </div>
+                {day.strava && (
+                  <div style={{
+                    marginTop: 10, padding: "8px 10px",
+                    background: `${C.green}15`, borderRadius: 8,
+                    border: `1px solid ${C.green}30`,
+                    display: "flex", gap: 16,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>計画NP</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{Math.round(ftp * 0.92)}W</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>実績NP</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{day.strava.watts}W</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>TSS</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.strava.tss}</div>
+                    </div>
+                    <Badge label="Strava連携" color="#FC4C02" bg="#FC4C0222" />
+                  </div>
+                )}
+              </div>
+              {selected === i && day.workout && (
+                <div style={{
+                  background: C.surface, borderRadius: "0 0 14px 14px",
+                  border: `1px solid ${C.borderHi}`, borderTop: "none",
+                  padding: "14px",
+                }}>
+                  <WorkoutBar blocks={day.workout.blocks} ftp={ftp} />
+                  <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {day.workout.blocks.map((b, j) => (
+                      <div key={j} style={{
+                        fontSize: 11, padding: "4px 10px", borderRadius: 8,
+                        background: C.card, border: `1px solid ${C.border}`,
+                        color: C.sub,
+                      }}>
+                        <b style={{ color: C.text }}>{b.label}</b> {b.min}分 @ {b.pct}% ({Math.round(ftp * b.pct / 100)}W)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{
         background: `linear-gradient(120deg, ${C.purple}30, ${C.blue}20)`,
@@ -701,7 +910,6 @@ function StravaPage() {
       { headers: { Authorization: `Bearer ${t}` } }
     );
     const data = await res.json();
-    console.log("活動タイプ:", data.map(a => a.type));
     if (Array.isArray(data)) setActivities(data);
     setLoading(false);
   }
@@ -822,7 +1030,7 @@ export default function App() {
 
   const pages = {
     home:   <HomePage ftp={ftp} latestWeight={latestWeight} />,
-    plan:   <PlanPage ftp={ftp} />,
+    plan: <PlanPage ftp={ftp} latestWeight={latestWeight} />,
     strava: <StravaPage />,
     weight: <WeightPage onWeightUpdate={setLatestWeight} />,
     goals:  <GoalsPage ftp={ftp} setFtp={setFtp} latestWeight={latestWeight} />,
