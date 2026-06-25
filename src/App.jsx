@@ -707,7 +707,7 @@ function StravaPage() {
 
   function connectStrava() {
     const clientId = "260703";
-    const redirect = `https://training-app-pi-peach.vercel.app/api/strava-callback`;
+    const redirect = `https://training-app-git-main-haru10.vercel.app/api/strava-callback`;
     const scope = "activity:read_all";
     window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}`;
   }
