@@ -662,10 +662,133 @@ function GoalsPage({ ftp, setFtp, latestWeight }) {
   );
 }
 
+// ── Strava ──
+function StravaPage() {
+  const [activities, setActivities] = useState([]);
+  const [athlete, setAthlete] = useState(null);
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("strava_token");
+    const a = params.get("athlete");
+    if (t) {
+      setToken(t);
+      localStorage.setItem("strava_token", t);
+    } else {
+      const saved = localStorage.getItem("strava_token");
+      if (saved) setToken(saved);
+    }
+    if (a) {
+      const parsed = JSON.parse(decodeURIComponent(a));
+      setAthlete(parsed);
+      localStorage.setItem("strava_athlete", JSON.stringify(parsed));
+    } else {
+      const saved = localStorage.getItem("strava_athlete");
+      if (saved) setAthlete(JSON.parse(saved));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (token) fetchActivities(token);
+  }, [token]);
+
+  async function fetchActivities(t) {
+    setLoading(true);
+    const res = await fetch(
+      "https://www.strava.com/api/v3/athlete/activities?per_page=10",
+      { headers: { Authorization: `Bearer ${t}` } }
+    );
+    const data = await res.json();
+    if (Array.isArray(data)) setActivities(data);
+    setLoading(false);
+  }
+
+  function connectStrava() {
+    const clientId = "260703";
+    const redirect = `https://training-app-pi-peach.vercel.app/api/strava-callback`;
+    const scope = "activity:read_all";
+    window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}`;
+  }
+
+  function logout() {
+    localStorage.removeItem("strava_token");
+    localStorage.removeItem("strava_athlete");
+    setToken(null);
+    setAthlete(null);
+    setActivities([]);
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {!token ? (
+        <Card style={{ textAlign: "center", padding: "32px 16px" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🚴</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 8 }}>
+            Stravaと連携する
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, marginBottom: 20 }}>
+            活動データを自動で取得してトレーニング計画と照合します
+          </div>
+          <button onClick={connectStrava} style={{
+            background: "#FC4C02", color: "#fff", border: "none",
+            borderRadius: 12, padding: "14px 28px",
+            fontSize: 14, fontWeight: 700, cursor: "pointer",
+          }}>Stravaでログイン</button>
+        </Card>
+      ) : (
+        <>
+          {athlete && (
+            <Card style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img src={athlete.profile} alt="" style={{ width: 48, height: 48, borderRadius: "50%" }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{athlete.firstname} {athlete.lastname}</div>
+                <div style={{ fontSize: 11, color: C.green }}>✓ Strava連携中</div>
+              </div>
+              <button onClick={logout} style={{
+                background: "transparent", color: C.muted, border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer",
+              }}>切断</button>
+            </Card>
+          )}
+
+          <SectionTitle>最近の活動</SectionTitle>
+          {loading ? (
+            <div style={{ textAlign: "center", color: C.muted, padding: 20 }}>読み込み中...</div>
+          ) : activities.map((act, i) => (
+            <Card key={i}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>{act.name}</div>
+                  <div style={{ fontSize: 11, color: C.sub }}>{new Date(act.start_date_local).toLocaleDateString("ja-JP")}</div>
+                </div>
+                <Badge label={act.type === "Ride" ? "🚴 ライド" : "🏃 ラン"} color={C.orange} bg={`${C.orange}22`} />
+              </div>
+              <div style={{ display: "flex", gap: 16 }}>
+                {[
+                  { label: "距離", val: `${(act.distance / 1000).toFixed(1)} km` },
+                  { label: "時間", val: `${Math.floor(act.moving_time / 60)}分` },
+                  { label: "獲得標高", val: `${act.total_elevation_gain}m` },
+                ].map((s, j) => (
+                  <div key={j}>
+                    <div style={{ fontSize: 10, color: C.muted }}>{s.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.sub }}>{s.val}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
 /* ─── Shell ──────────────────────────────────────── */
 const TABS = [
   { id: "home", label: "ホーム", icon: "⚡" },
   { id: "plan", label: "プラン", icon: "📅" },
+  { id: "strava", label: "Strava", icon: "🚴" },
   { id: "weight", label: "体重", icon: "⚖️" },
   { id: "goals", label: "目標", icon: "🎯" },
 ];
@@ -691,6 +814,7 @@ export default function App() {
   const pages = {
     home:   <HomePage ftp={ftp} latestWeight={latestWeight} />,
     plan:   <PlanPage ftp={ftp} />,
+    strava: <StravaPage />,
     weight: <WeightPage onWeightUpdate={setLatestWeight} />,
     goals:  <GoalsPage ftp={ftp} setFtp={setFtp} latestWeight={latestWeight} />,
   };
