@@ -257,7 +257,6 @@ function HomePage({ ftp, latestWeight }) {
 
 // ── Plan ──
 function PlanPage({ ftp, latestWeight }) {
-  const [selected, setSelected] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [aiPlan, setAiPlan] = useState(null);
   const [error, setError] = useState("");
@@ -275,7 +274,6 @@ function PlanPage({ ftp, latestWeight }) {
           weight: latestWeight || 73,
           targetWeight: 70,
           raceName: "グランフォンドKyoto 2025",
-          raceDate: "2025-09-14",
           weeksAvailable: 12,
         }),
       });
@@ -299,7 +297,6 @@ function PlanPage({ ftp, latestWeight }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* AI生成ボタン */}
       <div style={{
         background: `linear-gradient(120deg, ${C.purple}30, ${C.blue}20)`,
         borderRadius: 14, padding: "14px 16px",
@@ -323,7 +320,6 @@ function PlanPage({ ftp, latestWeight }) {
         {error && <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>{error}</div>}
       </div>
 
-      {/* AI生成プラン */}
       {aiPlan && (
         <>
           <div style={{
@@ -372,207 +368,6 @@ function PlanPage({ ftp, latestWeight }) {
           ))}
         </>
       )}
-
-      {/* 既存プラン */}
-      {!aiPlan && (
-        <>
-          <SectionTitle>今週のスケジュール（サンプル）</SectionTitle>
-          {PLAN.map((day, i) => (
-            <div key={i}>
-              <div
-                onClick={() => !day.rest && day.workout && setSelected(selected === i ? null : i)}
-                style={{
-                  background: selected === i ? C.cardHi : C.card,
-                  borderRadius: 14, padding: "12px 14px",
-                  border: `1px solid ${selected === i ? C.borderHi : C.border}`,
-                  cursor: day.workout ? "pointer" : "default",
-                  transition: "all 0.15s",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, textAlign: "center", flexShrink: 0 }}>
-                    <div style={{ fontSize: 10, color: C.muted }}>{day.date}</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: i === 3 ? C.blue : C.text }}>{day.day}</div>
-                  </div>
-                  {day.rest ? (
-                    <div style={{ flex: 1, fontSize: 12, color: C.muted }}>🛌 休養日</div>
-                  ) : (
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.workout.name}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
-                        <PlatformBadge platform={day.workout.platform} />
-                        <Badge label={`${day.workout.duration}分`} color={C.sub} bg={`${C.muted}30`} />
-                        <Badge label={day.workout.type} color={day.workout.color} bg={`${day.workout.color}22`} />
-                      </div>
-                      <WorkoutBar blocks={day.workout.blocks} ftp={ftp} compact />
-                    </div>
-                  )}
-                  {day.strava ? (
-                    <div style={{ flexShrink: 0, textAlign: "right" }}>
-                      <div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>✓ 完了</div>
-                      <div style={{ fontSize: 10, color: C.sub }}>NP {day.strava.watts}W</div>
-                    </div>
-                  ) : !day.rest && (
-                    <div style={{ flexShrink: 0, fontSize: 18, color: C.muted }}>›</div>
-                  )}
-                </div>
-                {day.strava && (
-                  <div style={{
-                    marginTop: 10, padding: "8px 10px",
-                    background: `${C.green}15`, borderRadius: 8,
-                    border: `1px solid ${C.green}30`,
-                    display: "flex", gap: 16,
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>計画NP</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{Math.round(ftp * 0.92)}W</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>実績NP</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{day.strava.watts}W</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>TSS</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.strava.tss}</div>
-                    </div>
-                    <Badge label="Strava連携" color="#FC4C02" bg="#FC4C0222" />
-                  </div>
-                )}
-              </div>
-              {selected === i && day.workout && (
-                <div style={{
-                  background: C.surface, borderRadius: "0 0 14px 14px",
-                  border: `1px solid ${C.borderHi}`, borderTop: "none",
-                  padding: "14px",
-                }}>
-                  <WorkoutBar blocks={day.workout.blocks} ftp={ftp} />
-                  <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {day.workout.blocks.map((b, j) => (
-                      <div key={j} style={{
-                        fontSize: 11, padding: "4px 10px", borderRadius: 8,
-                        background: C.card, border: `1px solid ${C.border}`,
-                        color: C.sub,
-                      }}>
-                        <b style={{ color: C.text }}>{b.label}</b> {b.min}分 @ {b.pct}% ({Math.round(ftp * b.pct / 100)}W)
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{
-        background: `linear-gradient(120deg, ${C.purple}30, ${C.blue}20)`,
-        borderRadius: 14, padding: "14px 16px",
-        border: `1px solid ${C.purple}40`,
-        display: "flex", gap: 12, alignItems: "center",
-      }}>
-        <div style={{ fontSize: 28 }}>🤖</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>AI コーチからの提案</div>
-          <div style={{ fontSize: 11, color: C.sub }}>FTP +20W（320W目標）に向けた8週間プラン。今週はベース強化フェーズです。</div>
-        </div>
-      </div>
-
-      <SectionTitle>今週のスケジュール</SectionTitle>
-      {PLAN.map((day, i) => (
-        <div key={i}>
-          <div
-            onClick={() => !day.rest && day.workout && setSelected(selected === i ? null : i)}
-            style={{
-              background: selected === i ? C.cardHi : C.card,
-              borderRadius: 14, padding: "12px 14px",
-              border: `1px solid ${selected === i ? C.borderHi : C.border}`,
-              cursor: day.workout ? "pointer" : "default",
-              transition: "all 0.15s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, textAlign: "center", flexShrink: 0 }}>
-                <div style={{ fontSize: 10, color: C.muted }}>{day.date}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: i === 3 ? C.blue : C.text }}>{day.day}</div>
-              </div>
-
-              {day.rest ? (
-                <div style={{ flex: 1, fontSize: 12, color: C.muted }}>🛌 休養日</div>
-              ) : (
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.workout.name}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
-                    <PlatformBadge platform={day.workout.platform} />
-                    <Badge label={`${day.workout.duration}分`} color={C.sub} bg={`${C.muted}30`} />
-                    <Badge label={day.workout.type} color={day.workout.color} bg={`${day.workout.color}22`} />
-                  </div>
-                  <WorkoutBar blocks={day.workout.blocks} ftp={ftp} compact />
-                </div>
-              )}
-
-              {day.strava ? (
-                <div style={{ flexShrink: 0, textAlign: "right" }}>
-                  <div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>✓ 完了</div>
-                  <div style={{ fontSize: 10, color: C.sub }}>NP {day.strava.watts}W</div>
-                </div>
-              ) : !day.rest && (
-                <div style={{ flexShrink: 0, fontSize: 18, color: C.muted }}>›</div>
-              )}
-            </div>
-
-            {day.strava && (
-              <div style={{
-                marginTop: 10, padding: "8px 10px",
-                background: `${C.green}15`, borderRadius: 8,
-                border: `1px solid ${C.green}30`,
-                display: "flex", gap: 16,
-              }}>
-                <div>
-                  <div style={{ fontSize: 9, color: C.sub }}>計画NP</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{Math.round(ftp * 0.92)}W</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: C.sub }}>実績NP</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{day.strava.watts}W</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: C.sub }}>TSS</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{day.strava.tss}</div>
-                </div>
-                <Badge label="Strava連携" color="#FC4C02" bg="#FC4C0222" />
-              </div>
-            )}
-          </div>
-
-          {selected === i && day.workout && (
-            <div style={{
-              background: C.surface, borderRadius: "0 0 14px 14px",
-              border: `1px solid ${C.borderHi}`, borderTop: "none",
-              padding: "14px",
-            }}>
-              <WorkoutBar blocks={day.workout.blocks} ftp={ftp} />
-              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {day.workout.blocks.map((b, j) => (
-                  <div key={j} style={{
-                    fontSize: 11, padding: "4px 10px", borderRadius: 8,
-                    background: C.card, border: `1px solid ${C.border}`,
-                    color: C.sub,
-                  }}>
-                    <b style={{ color: C.text }}>{b.label}</b> {b.min}分 @ {b.pct}% ({Math.round(ftp * b.pct / 100)}W)
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
     </div>
   );
 }
