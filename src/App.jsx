@@ -260,6 +260,7 @@ function PlanPage({ ftp, latestWeight }) {
   const [generating, setGenerating] = useState(false);
   const [aiPlan, setAiPlan] = useState(null);
   const [error, setError] = useState("");
+  const [platform, setPlatform] = useState("Zwift");
 
   async function generatePlan() {
     setGenerating(true);
@@ -275,6 +276,7 @@ function PlanPage({ ftp, latestWeight }) {
           targetWeight: 70,
           raceName: "グランフォンドKyoto 2025",
           weeksAvailable: 12,
+          platform,
         }),
       });
       const data = await res.json();
@@ -309,6 +311,17 @@ function PlanPage({ ftp, latestWeight }) {
             <div style={{ fontSize: 11, color: C.sub }}>FTP・体重・目標から最適な週間プランを生成</div>
           </div>
         </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+  {["Zwift", "MyWhoosh", "両方"].map(p => (
+    <button key={p} onClick={() => setPlatform(p)} style={{
+      flex: 1, padding: "8px", borderRadius: 10, border: "none",
+      cursor: "pointer", fontSize: 12, fontWeight: 700,
+      background: platform === p ? C.blue : C.surface,
+      color: platform === p ? "#fff" : C.sub,
+      border: `1px solid ${platform === p ? C.blue : C.border}`,
+    }}>{p}</button>
+  ))}
+</div>
         <button onClick={generatePlan} disabled={generating} style={{
           width: "100%", background: generating ? C.muted : C.purple,
           color: "#fff", border: "none", borderRadius: 10,
