@@ -5,8 +5,7 @@ export default async function handler(req, res) {
   const raceName = req.body?.raceName || "レース";
   const weeksAvailable = req.body?.weeksAvailable || 12;
 
-  const content = "サイクリングコーチとして週間トレーニング計画をJSON形式のみで返してください。FTP:" + ftp + "W 目標:" + targetFtp + "W 体重:" + weight + "kg レース:" + raceName + " 週数:" + weeksAvailable + " 形式:{\"phase\":\"名前\",\"weeklyTSS\":300,\"advice\":\"アドバイス\",\"days\":[{\"day\":\"月\",\"type\":\"workout\",\"platform\":\"Zwift\",\"name\":\"名前\",\"duration\":60,\"tss\":70,\"zone\":\"Endurance\",\"description\":\"説明\"},{\"day\":\"火\",\"type\":\"rest\"},{\"day\":\"水\",\"type\":\"workout\",\"platform\":\"MyWhoosh\",\"name\":\"名前\",\"duration\":75,\"tss\":80,\"zone\":\"Threshold\",\"description\":\"説明\"},{\"day\":\"木\",\"type\":\"rest\"},{\"day\":\"金\",\"type\":\"workout\",\"platform\":\"Zwift\",\"name\":\"名前\",\"duration\":50,\"tss\":85,\"zone\":\"VO2max\",\"description\":\"説明\"},{\"day\":\"土\",\"type\":\"workout\",\"platform\":\"MyWhoosh\",\"name\":\"名前\",\"duration\":90,\"tss\":65,\"zone\":\"Endurance\",\"description\":\"説明\"},{\"day\":\"日\",\"type\":\"rest\"}]}";
-
+  const content = "サイクリングコーチとして週間計画をJSON形式のみで返してください。FTP:" + ftp + "W 目標:" + targetFtp + "W レース:" + raceName + " 各dayのdescriptionは20文字以内。{\"phase\":\"名前\",\"weeklyTSS\":300,\"advice\":\"20文字以内\",\"days\":[{\"day\":\"月\",\"type\":\"workout\",\"platform\":\"Zwift\",\"name\":\"名前\",\"duration\":60,\"tss\":70,\"zone\":\"Endurance\",\"description\":\"短い説明\"},{\"day\":\"火\",\"type\":\"rest\"},{\"day\":\"水\",\"type\":\"workout\",\"platform\":\"MyWhoosh\",\"name\":\"名前\",\"duration\":75,\"tss\":80,\"zone\":\"Threshold\",\"description\":\"短い説明\"},{\"day\":\"木\",\"type\":\"rest\"},{\"day\":\"金\",\"type\":\"workout\",\"platform\":\"Zwift\",\"name\":\"名前\",\"duration\":50,\"tss\":85,\"zone\":\"VO2max\",\"description\":\"短い説明\"},{\"day\":\"土\",\"type\":\"workout\",\"platform\":\"MyWhoosh\",\"name\":\"名前\",\"duration\":90,\"tss\":65,\"zone\":\"Endurance\",\"description\":\"短い説明\"},{\"day\":\"日\",\"type\":\"rest\"}]}";
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -17,7 +16,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 4000,
+        max_tokens: 1000,
         messages: [{ role: "user", content: content }],
       }),
     });
