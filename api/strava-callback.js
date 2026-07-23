@@ -29,5 +29,34 @@ export default async function handler(req, res) {
     athlete: encodeURIComponent(JSON.stringify(data.athlete)),
   })
 
-  res.redirect(`/?${params.toString()}`)
+  // ポップアップとして開かれた場合はwindow.openerへpostMessageして即クローズ。
+  // 通常のページ遷移として開かれた場合(ポップアップがブロックされた等)は/にリダイレクト。
+  const payload = JSON.stringify({
+    type: 'strava-auth',
+    strava_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: data.expires_at,
+    athlete: data.athlete,
+  }).replace(/</g, '\\u003c')
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.status(200).send(`<!DOCTYPE html>
+<html><body>
+<script>
+  var payload = ${payload};
+  if (window.opener) {
+    window.opener.postMessage(payload, window.location.origin);
+    window.close();
+  } else {
+    var params = new URLSearchParams({
+      strava_token: payload.strava_token,
+      refresh_token: payload.refresh_token,
+      expires_at: String(payload.expires_at),
+      athlete: encodeURIComponent(JSON.stringify(payload.athlete)),
+    });
+    window.location.href = '/?' + params.toString();
+  }
+</script>
+Strava連携が完了しました。このウィンドウは閉じてください。
+</body></html>`)
 }
