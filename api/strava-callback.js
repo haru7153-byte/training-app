@@ -29,6 +29,5 @@ export default async function handler(req, res) {
     athlete: encodeURIComponent(JSON.stringify(data.athlete)),
   })
 
-  // カスタムスキームでアプリに戻る（WebBrowser.openAuthSessionAsync が検知）
-  res.redirect(`trainingapp://strava-callback?${params.toString()}`)
+  res.redirect(`/?${params.toString()}`)
 }
