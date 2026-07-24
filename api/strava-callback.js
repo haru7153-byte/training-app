@@ -35,6 +35,6 @@ export default async function handler(req, res) {
 
   // ASWebAuthenticationSession(expo-web-browser の openAuthSessionAsync)は
   // trainingapp:// へのナビゲーションを検知して自動的にアプリへ結果を返す。
-  // サーバー側の302リダイレクトが最も確実に検知される。
-  res.redirect(redirectUrl)
+  // res.redirect()のデフォルト(307)ではなく、明示的に302を使う。
+  res.redirect(302, redirectUrl)
 }
