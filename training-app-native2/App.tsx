@@ -1008,9 +1008,6 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
       // APP_SCHEME を監視: Vercel が trainingapp:// にリダイレクトしたら閉じる
       const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME)
 
-      // DEBUG: 診断用に生の結果を画面表示する(原因特定でき次第削除)
-      setAuthError(`[DEBUG] type=${result.type} url=${'url' in result ? result.url : '(none)'}`)
-
       if (result.type === 'success' && result.url) {
         const params = new URLSearchParams(result.url.split('?')[1])
         const newToken = params.get('strava_token')
@@ -1022,17 +1019,17 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
           await saveStravaAuth({ token: newToken, refreshToken: refreshToken ?? undefined, expiresAt: expiresAt ?? undefined })
           setToken(newToken)
           syncFtpFromStrava(newToken)
-        } else {
-          setAuthError(prev => `${prev} | newToken missing from params: ${result.url}`)
         }
         if (athleteParam) {
           const parsed = JSON.parse(decodeURIComponent(athleteParam))
           await saveStravaAuth({ athlete: parsed })
           setAthlete(parsed)
         }
+      } else if (result.type !== 'cancel') {
+        setAuthError('認証に失敗しました。もう一度お試しください。')
       }
-    } catch (e: any) {
-      setAuthError(`[DEBUG] exception: ${e?.message ?? String(e)}`)
+    } catch {
+      setAuthError('認証に失敗しました。もう一度お試しください。')
     }
   }
 

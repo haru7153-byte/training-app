@@ -9,7 +9,7 @@ async function currentUserId(): Promise<string | null> {
 }
 
 function scopedKey(base: string, userId: string) {
-  return `${base}:${userId}`
+  return `${base}_${userId}`
 }
 
 /** Strava tokens are per Supabase user — this app has multiple accounts, so keys must be namespaced by user id. */
