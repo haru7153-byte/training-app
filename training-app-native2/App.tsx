@@ -1004,28 +1004,35 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
     const scope = 'read,activity:read_all,profile:read_all'
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(VERCEL_CALLBACK)}&response_type=code&scope=${scope}`
 
-    // APP_SCHEME を監視: Vercel が trainingapp:// にリダイレクトしたら閉じる
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME)
+    try {
+      // APP_SCHEME を監視: Vercel が trainingapp:// にリダイレクトしたら閉じる
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME)
 
-    if (result.type === 'success' && result.url) {
-      const params = new URLSearchParams(result.url.split('?')[1])
-      const newToken = params.get('strava_token')
-      const refreshToken = params.get('refresh_token')
-      const expiresAt = params.get('expires_at')
-      const athleteParam = params.get('athlete')
+      // DEBUG: 診断用に生の結果を画面表示する(原因特定でき次第削除)
+      setAuthError(`[DEBUG] type=${result.type} url=${'url' in result ? result.url : '(none)'}`)
 
-      if (newToken) {
-        await saveStravaAuth({ token: newToken, refreshToken: refreshToken ?? undefined, expiresAt: expiresAt ?? undefined })
-        setToken(newToken)
-        syncFtpFromStrava(newToken)
+      if (result.type === 'success' && result.url) {
+        const params = new URLSearchParams(result.url.split('?')[1])
+        const newToken = params.get('strava_token')
+        const refreshToken = params.get('refresh_token')
+        const expiresAt = params.get('expires_at')
+        const athleteParam = params.get('athlete')
+
+        if (newToken) {
+          await saveStravaAuth({ token: newToken, refreshToken: refreshToken ?? undefined, expiresAt: expiresAt ?? undefined })
+          setToken(newToken)
+          syncFtpFromStrava(newToken)
+        } else {
+          setAuthError(prev => `${prev} | newToken missing from params: ${result.url}`)
+        }
+        if (athleteParam) {
+          const parsed = JSON.parse(decodeURIComponent(athleteParam))
+          await saveStravaAuth({ athlete: parsed })
+          setAthlete(parsed)
+        }
       }
-      if (athleteParam) {
-        const parsed = JSON.parse(decodeURIComponent(athleteParam))
-        await saveStravaAuth({ athlete: parsed })
-        setAthlete(parsed)
-      }
-    } else if (result.type !== 'cancel') {
-      setAuthError('認証に失敗しました。もう一度お試しください。')
+    } catch (e: any) {
+      setAuthError(`[DEBUG] exception: ${e?.message ?? String(e)}`)
     }
   }
 
