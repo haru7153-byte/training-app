@@ -19,6 +19,7 @@ export default async function handler(req, res) {
   const data = await response.json()
 
   if (data.errors || !data.access_token) {
+    console.log('[strava-callback] token exchange failed', JSON.stringify(data))
     return res.status(400).json({ error: 'Token exchange failed' })
   }
 
@@ -29,8 +30,11 @@ export default async function handler(req, res) {
     athlete: encodeURIComponent(JSON.stringify(data.athlete)),
   })
 
+  const redirectUrl = `trainingapp://strava-callback?${params.toString()}`
+  console.log('[strava-callback] redirecting to', redirectUrl)
+
   // ASWebAuthenticationSession(expo-web-browser の openAuthSessionAsync)は
   // trainingapp:// へのナビゲーションを検知して自動的にアプリへ結果を返す。
   // サーバー側の302リダイレクトが最も確実に検知される。
-  res.redirect(`trainingapp://strava-callback?${params.toString()}`)
+  res.redirect(redirectUrl)
 }
