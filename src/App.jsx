@@ -689,10 +689,14 @@ function StravaPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("strava_token");
+    const rt = params.get("refresh_token");
+    const exp = params.get("expires_at");
     const a = params.get("athlete");
     if (t) {
       setToken(t);
       localStorage.setItem("strava_token", t);
+      if (rt) localStorage.setItem("strava_refresh_token", rt);
+      if (exp) localStorage.setItem("strava_expires_at", exp);
     } else {
       const saved = localStorage.getItem("strava_token");
       if (saved) setToken(saved);
@@ -705,14 +709,59 @@ function StravaPage() {
       const saved = localStorage.getItem("strava_athlete");
       if (saved) setAthlete(JSON.parse(saved));
     }
+    if (t || a) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
     if (token) fetchActivities(token);
   }, [token]);
 
+  // ポップアップ(別ブラウジングコンテキスト)で完了したStrava認証をpostMessageで受け取る
+  useEffect(() => {
+    function handleMessage(e) {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type !== "strava-auth") return;
+      const { strava_token: t, refresh_token: rt, expires_at: exp, athlete: a } = e.data;
+      if (t) {
+        setToken(t);
+        localStorage.setItem("strava_token", t);
+        if (rt) localStorage.setItem("strava_refresh_token", rt);
+        if (exp) localStorage.setItem("strava_expires_at", String(exp));
+      }
+      if (a) {
+        setAthlete(a);
+        localStorage.setItem("strava_athlete", JSON.stringify(a));
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  async function refreshAccessToken() {
+    const refreshToken = localStorage.getItem("strava_refresh_token");
+    if (!refreshToken) return null;
+    const res = await fetch("/api/strava-refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem("strava_token", data.access_token);
+    localStorage.setItem("strava_refresh_token", data.refresh_token);
+    localStorage.setItem("strava_expires_at", String(data.expires_at));
+    return data.access_token;
+  }
+
   async function fetchActivities(t) {
     setLoading(true);
+    const expiresAt = Number(localStorage.getItem("strava_expires_at"));
+    if (expiresAt && expiresAt * 1000 < Date.now()) {
+      const fresh = await refreshAccessToken();
+      if (fresh) t = fresh;
+    }
     const res = await fetch(
       "https://www.strava.com/api/v3/athlete/activities?per_page=10",
       { headers: { Authorization: `Bearer ${t}` } }
@@ -726,12 +775,16 @@ function StravaPage() {
     const clientId = "260703";
     const redirect = `https://training-app-git-main-haru10.vercel.app/api/strava-callback`;
     const scope = "activity:read_all";
-    window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}`;
+    const url = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}`;
+    const popup = window.open(url, "strava-oauth");
+    if (!popup) window.location.href = url;
   }
 
   function logout() {
     localStorage.removeItem("strava_token");
     localStorage.removeItem("strava_athlete");
+    localStorage.removeItem("strava_refresh_token");
+    localStorage.removeItem("strava_expires_at");
     setToken(null);
     setAthlete(null);
     setActivities([]);
@@ -819,7 +872,9 @@ const TABS = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState(() =>
+    new URLSearchParams(window.location.search).has("strava_token") ? "strava" : "home"
+  );
   const [ftp, setFtp] = useState(300);
   const [latestWeight, setLatestWeight] = useState(null);
 
