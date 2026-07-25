@@ -768,7 +768,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
         <View style={[styles.card, { backgroundColor: '#1A1030', borderColor: C.purple + '40' }]}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 4 }}>🏁 長期トレーニングプランを作成</Text>
+          <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, marginBottom: 4 }}>🏁 長期トレーニングプランを作成</Text>
           <Text style={{ fontSize: 14, color: C.sub, marginBottom: 14, lineHeight: 18 }}>
             {eventName}（{eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}・あと{daysToRace}日）まで、レスト週やFTPテスト日を織り込んだ週ごとの計画を自動で組みます。
           </Text>
@@ -807,7 +807,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
                   }}
                 >
                   <Text style={{ fontSize: 14, fontWeight: '700', color: isRest ? C.muted : C.purple }}>{day}</Text>
-                  <Text style={{ fontSize: 10, color: isRest ? C.muted : C.purple, marginTop: 2 }}>{isRest ? '休' : '練'}</Text>
+                  <Text style={{ fontSize: 9, color: isRest ? C.muted : C.purple, marginTop: 2 }}>{isRest ? '休' : '練'}</Text>
                 </TouchableOpacity>
               )
             })}
@@ -818,7 +818,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
             disabled={creating}
             style={{ backgroundColor: creating ? C.muted : C.purple, borderRadius: 10, padding: 14 }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15, textAlign: 'center' }}>
               {creating ? '⏳ 作成中...' : '✨ 長期プランを作成する'}
             </Text>
           </TouchableOpacity>
@@ -848,20 +848,20 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           {todayDay.type === 'rest' ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
               <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.cyan + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 36 }}>😴</Text>
+                <Text style={{ fontSize: 32 }}>😴</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>計画通りの休養日</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>計画通りの休養日</Text>
                 <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>回復もトレーニングのうちです</Text>
               </View>
             </View>
           ) : todayScore == null ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
               <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.muted + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 31 }}>⏳</Text>
+                <Text style={{ fontSize: 28 }}>⏳</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{todayDay.name || 'ワークアウト予定'}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{todayDay.name || 'ワークアウト予定'}</Text>
                 <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>実施してStravaに同期すると、ここに採点が表示されます</Text>
               </View>
             </View>
@@ -879,11 +879,11 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
                   />
                 </Svg>
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 24, fontWeight: '900', color: todayScoreColor }}>{todayScore}</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '900', color: todayScoreColor }}>{todayScore}</Text>
                 </View>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '800', color: C.text }}>{todayDay.name}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{todayDay.name}</Text>
                 <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>
                   予定 {todayDay.duration}分・TSS{todayDay.planned_tss}　実績 {todayReview?.actualDuration}分・TSS{todayReview?.actualTss}
                 </Text>
@@ -892,7 +892,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           )}
 
           {todayDay.type !== 'rest' && todayScore == null ? null : todayDay.review_comment ? (
-            <Text style={{ fontSize: 13, color: C.muted, marginTop: 12, lineHeight: 16 }}>💬 {todayDay.review_comment}</Text>
+            <Text style={{ fontSize: 13, color: C.sub, marginTop: 12, lineHeight: 16 }}>💬 {todayDay.review_comment}</Text>
           ) : (
             <TouchableOpacity onPress={() => generateReviewComment(todayDay)} disabled={reviewingDayId === todayDay.id} style={{ marginTop: 10 }}>
               <Text style={{ fontSize: 13, color: reviewingDayId === todayDay.id ? C.muted : C.blue, fontWeight: '700' }}>
@@ -904,13 +904,13 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           {streakDays > 0 && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
               <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 17, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>🔥 {streakDays}日</Text>
-                <Text style={{ fontSize: 11, color: C.sub, marginTop: 1 }}>連続で計画通り</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>🔥 {streakDays}日</Text>
+                <Text style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>連続で計画通り</Text>
               </View>
               {weekAvgScore != null && (
                 <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 17, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>{weekAvgScore}点</Text>
-                  <Text style={{ fontSize: 11, color: C.sub, marginTop: 1 }}>週間平均(運動日)</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>{weekAvgScore}点</Text>
+                  <Text style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>週間平均(運動日)</Text>
                 </View>
               )}
             </View>
@@ -923,11 +923,11 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 12, color: phaseColor, fontWeight: '700', letterSpacing: 1 }}>🏁 長期プラン</Text>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginTop: 4 }}>{activePlan.plan.event_name}</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, marginTop: 4 }}>{activePlan.plan.event_name}</Text>
           </View>
           <View style={{ alignItems: 'center', backgroundColor: phaseColor + '22', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 29, fontWeight: '900', color: phaseColor }}>{daysToRace}</Text>
-            <Text style={{ fontSize: 11, color: C.sub }}>日後</Text>
+            <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{daysToRace}</Text>
+            <Text style={{ fontSize: 10, color: C.sub }}>日後</Text>
           </View>
         </View>
 
@@ -961,7 +961,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
                 borderColor: w.has_ftp_test ? C.orange : C.cyan,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '800', color: currentWeek?.id === w.id ? '#fff' : PHASE_COLORS[w.phase] }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: currentWeek?.id === w.id ? '#fff' : PHASE_COLORS[w.phase] }}>
                 {w.week_number}
               </Text>
             </View>
@@ -1025,7 +1025,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
             disabled={generatingWeek}
             style={{ backgroundColor: generatingWeek ? C.muted : C.purple, borderRadius: 10, padding: 12 }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15, textAlign: 'center' }}>
               {generatingWeek ? '⏳ 生成中...' : '✨ 今週の詳細プランを生成する'}
             </Text>
           </TouchableOpacity>
@@ -1043,12 +1043,12 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           return (
             <View key={day.id} style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={{ fontSize: 19, fontWeight: '800', color: C.text, width: 28 }}>{dayLabel}</Text>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, width: 28 }}>{dayLabel}</Text>
                 {day.type === 'rest' ? (
                   <Text style={{ fontSize: 14, color: C.muted, flex: 1 }}>🛌 休養日</Text>
                 ) : (
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 4 }}>
                       {day.type === 'ftp_test' ? '⚡ ' : ''}
                       {day.name}
                     </Text>
@@ -1089,7 +1089,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
                     )}
                   </View>
                   {day.review_comment ? (
-                    <Text style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 16 }}>💬 {day.review_comment}</Text>
+                    <Text style={{ fontSize: 13, color: C.sub, marginTop: 6, lineHeight: 16 }}>💬 {day.review_comment}</Text>
                   ) : (
                     <TouchableOpacity onPress={() => generateReviewComment(day)} disabled={reviewingDayId === day.id} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
                       <Text style={{ fontSize: 13, color: reviewingDayId === day.id ? C.muted : C.blue, fontWeight: '700' }}>
