@@ -6,6 +6,10 @@ export const DAYS_JP = ['月', '火', '水', '木', '金', '土', '日'] as cons
 export type Phase = 'Base' | 'Build' | 'Peak' | 'Taper'
 export type DayType = 'workout' | 'rest' | 'ftp_test'
 export type ReviewStatus = 'pending' | 'completed' | 'partial' | 'not_done' | 'rest_ok' | 'rest_skipped'
+export type GoalType = 'race' | 'ongoing'
+
+/** How many weeks to generate at a time for a date-less "ongoing" goal. */
+export const ONGOING_BLOCK_SIZE = 8
 
 export interface WeekPlan {
   weekNumber: number
@@ -27,7 +31,7 @@ export interface PlanDayDraft {
 export interface TrainingPlanRow {
   id: string
   event_name: string
-  event_date: string
+  event_date: string | null
   start_date: string
   starting_ftp: number
   goal_ftp: number
@@ -36,6 +40,8 @@ export interface TrainingPlanRow {
   rest_day_indices: number[]
   status: 'active' | 'archived'
   created_at: string
+  goal_type: GoalType
+  ftp_test_enabled: boolean
 }
 
 export interface PlanWeekRow {
@@ -105,8 +111,9 @@ export function computeWeekSchedule(params: {
   eventDate: Date
   weeklyTargetTss: number
   restDayIndices: number[]
+  ftpTestEnabled?: boolean
 }): WeekPlan[] {
-  const { today, eventDate, weeklyTargetTss, restDayIndices } = params
+  const { today, eventDate, weeklyTargetTss, restDayIndices, ftpTestEnabled = true } = params
   const startMonday = mondayOf(today)
   const eventMonday = mondayOf(eventDate)
   const totalWeeks = Math.max(1, Math.round((eventMonday.getTime() - startMonday.getTime()) / (7 * 86400000)) + 1)
@@ -165,7 +172,7 @@ export function computeWeekSchedule(params: {
 
     let hasFtpTest = false
     let ftpTestDay: number | null = null
-    if (isRecoveryWeek && i - lastFtpTestWeekIndex >= 3) {
+    if (ftpTestEnabled && isRecoveryWeek && i - lastFtpTestWeekIndex >= 3) {
       const trainingDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !weekRestDays.includes(d))
       if (trainingDays.length > 0) {
         hasFtpTest = true
@@ -176,6 +183,79 @@ export function computeWeekSchedule(params: {
 
     weeks.push({
       weekNumber: i + 1,
+      weekStartDate: addDays(startMonday, i * 7),
+      phase,
+      isRecoveryWeek,
+      hasFtpTest,
+      ftpTestDay,
+      targetTss: roundTss(tss),
+      restDayIndices: weekRestDays.sort((a, b) => a - b),
+    })
+  }
+
+  return weeks
+}
+
+/**
+ * Repeating schedule for goals with no target date (general fitness, climbing,
+ * criteriums, etc.): a 4-week cycle of 3 progressively-loaded "Build" weeks
+ * followed by one recovery ("Base") week, repeated indefinitely. Generated
+ * one block at a time (see ONGOING_BLOCK_SIZE) and extended as the athlete
+ * gets close to running out of scheduled weeks — see extendOngoingPlan.
+ */
+export function computeOngoingBlock(params: {
+  startWeekNumber: number
+  blockStartDate: Date
+  weeksToGenerate: number
+  weeklyTargetTss: number
+  restDayIndices: number[]
+  ftpTestEnabled: boolean
+  tssMultiplier?: number
+  lastFtpTestWeekIndex?: number
+}): WeekPlan[] {
+  const {
+    startWeekNumber,
+    blockStartDate,
+    weeksToGenerate,
+    weeklyTargetTss,
+    restDayIndices,
+    ftpTestEnabled,
+    tssMultiplier = 1,
+    lastFtpTestWeekIndex = -Infinity,
+  } = params
+  const startMonday = mondayOf(blockStartDate)
+
+  const weeks: WeekPlan[] = []
+  let lastFtp = lastFtpTestWeekIndex
+
+  for (let i = 0; i < weeksToGenerate; i++) {
+    const absoluteIndex = startWeekNumber - 1 + i // 0-based, counted from the very first week of the plan
+    const cyclePos = absoluteIndex % 4 // 0,1,2 = build load weeks, 3 = recovery week
+    const isRecoveryWeek = cyclePos === 3
+    const phase: Phase = isRecoveryWeek ? 'Base' : 'Build'
+
+    let tss = (isRecoveryWeek ? weeklyTargetTss * 0.65 : weeklyTargetTss * (0.85 + 0.1 * cyclePos)) * tssMultiplier
+
+    let weekRestDays = [...restDayIndices]
+    if (isRecoveryWeek) {
+      const trainingDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !weekRestDays.includes(d))
+      const extraRest = trainingDays[trainingDays.length - 1]
+      if (extraRest !== undefined) weekRestDays = [...weekRestDays, extraRest]
+    }
+
+    let hasFtpTest = false
+    let ftpTestDay: number | null = null
+    if (ftpTestEnabled && isRecoveryWeek && absoluteIndex - lastFtp >= 3) {
+      const trainingDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !weekRestDays.includes(d))
+      if (trainingDays.length > 0) {
+        hasFtpTest = true
+        ftpTestDay = Math.min(...trainingDays)
+        lastFtp = absoluteIndex
+      }
+    }
+
+    weeks.push({
+      weekNumber: startWeekNumber + i,
       weekStartDate: addDays(startMonday, i * 7),
       phase,
       isRecoveryWeek,
@@ -236,13 +316,15 @@ export async function getActivePlan(): Promise<{ plan: TrainingPlanRow; weeks: P
 
 export async function createTrainingPlan(input: {
   eventName: string
-  eventDate: Date
+  eventDate: Date | null
   startDate: Date
   startingFtp: number
   goalFtp: number
   weeklyTargetTss: number
   platform: string
   restDayIndices: number[]
+  goalType: GoalType
+  ftpTestEnabled: boolean
 }): Promise<{ plan: TrainingPlanRow; weeks: PlanWeekRow[] }> {
   await supabase.from('training_plan').update({ status: 'archived' }).eq('status', 'active')
 
@@ -250,7 +332,7 @@ export async function createTrainingPlan(input: {
     .from('training_plan')
     .insert({
       event_name: input.eventName,
-      event_date: toDateStr(input.eventDate),
+      event_date: input.eventDate ? toDateStr(input.eventDate) : null,
       start_date: toDateStr(input.startDate),
       starting_ftp: input.startingFtp,
       goal_ftp: input.goalFtp,
@@ -258,17 +340,30 @@ export async function createTrainingPlan(input: {
       platform: input.platform,
       rest_day_indices: input.restDayIndices,
       status: 'active',
+      goal_type: input.goalType,
+      ftp_test_enabled: input.ftpTestEnabled,
     })
     .select()
     .single()
   if (planError || !plan) throw planError || new Error('failed to create plan')
 
-  const schedule = computeWeekSchedule({
-    today: input.startDate,
-    eventDate: input.eventDate,
-    weeklyTargetTss: input.weeklyTargetTss,
-    restDayIndices: input.restDayIndices,
-  })
+  const schedule =
+    input.goalType === 'race' && input.eventDate
+      ? computeWeekSchedule({
+          today: input.startDate,
+          eventDate: input.eventDate,
+          weeklyTargetTss: input.weeklyTargetTss,
+          restDayIndices: input.restDayIndices,
+          ftpTestEnabled: input.ftpTestEnabled,
+        })
+      : computeOngoingBlock({
+          startWeekNumber: 1,
+          blockStartDate: input.startDate,
+          weeksToGenerate: ONGOING_BLOCK_SIZE,
+          weeklyTargetTss: input.weeklyTargetTss,
+          restDayIndices: input.restDayIndices,
+          ftpTestEnabled: input.ftpTestEnabled,
+        })
 
   const { data: weeks, error: weeksError } = await supabase
     .from('plan_week')
@@ -290,6 +385,58 @@ export async function createTrainingPlan(input: {
   if (weeksError) throw weeksError
 
   return { plan, weeks: (weeks || []).sort((a: PlanWeekRow, b: PlanWeekRow) => a.week_number - b.week_number) }
+}
+
+/**
+ * Appends the next block of weeks to an ongoing (date-less) plan, continuing
+ * the repeating cycle from where it left off. tssMultiplier (<1 to ease off,
+ * >1 to push harder) applies only to the new block, so it works as a
+ * check-in adjustment rather than a permanent plan-wide change.
+ */
+export async function extendOngoingPlan(
+  plan: TrainingPlanRow,
+  lastWeek: PlanWeekRow,
+  tssMultiplier: number = 1
+): Promise<PlanWeekRow[]> {
+  const { data: recentFtpWeeks } = await supabase
+    .from('plan_week')
+    .select('week_number')
+    .eq('plan_id', plan.id)
+    .eq('has_ftp_test', true)
+    .order('week_number', { ascending: false })
+    .limit(1)
+  const lastFtpTestWeekIndex = recentFtpWeeks && recentFtpWeeks.length > 0 ? recentFtpWeeks[0].week_number - 1 : -Infinity
+
+  const schedule = computeOngoingBlock({
+    startWeekNumber: lastWeek.week_number + 1,
+    blockStartDate: addDays(parseDateOnly(lastWeek.week_start_date), 7),
+    weeksToGenerate: ONGOING_BLOCK_SIZE,
+    weeklyTargetTss: plan.weekly_target_tss,
+    restDayIndices: plan.rest_day_indices,
+    ftpTestEnabled: plan.ftp_test_enabled,
+    tssMultiplier,
+    lastFtpTestWeekIndex,
+  })
+
+  const { data: weeks, error } = await supabase
+    .from('plan_week')
+    .insert(
+      schedule.map(w => ({
+        plan_id: plan.id,
+        week_number: w.weekNumber,
+        week_start_date: toDateStr(w.weekStartDate),
+        phase: w.phase,
+        is_recovery_week: w.isRecoveryWeek,
+        has_ftp_test: w.hasFtpTest,
+        ftp_test_day: w.ftpTestDay,
+        target_tss: w.targetTss,
+        rest_day_indices: w.restDayIndices,
+        detail_status: 'pending',
+      }))
+    )
+    .select()
+  if (error) throw error
+  return (weeks || []).sort((a: PlanWeekRow, b: PlanWeekRow) => a.week_number - b.week_number)
 }
 
 export async function getPlanDays(weekId: string): Promise<PlanDayRow[]> {

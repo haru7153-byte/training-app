@@ -53,7 +53,7 @@ export default async function handler(req, res) {
   const ftpTestDayLabel = ftpTestDay !== null && ftpTestDay !== undefined ? DAYS_JP[ftpTestDay] : null
 
   const prompt = `You are a cycling coach. Return ONLY valid JSON, no explanation.
-FTP:${ftp}W Target:${targetFtp}W Race:"${eventName || ''}" Platform:${platform}
+FTP:${ftp}W Target:${targetFtp}W Goal:"${eventName || ''}" Platform:${platform}
 Phase:${phase}${isRecoveryWeek ? ' (recovery week — keep intensity low)' : ''} Weekly target TSS:${weekTargetTss}
 Training days:${trainingDays || 'none'} Rest days:${restDaysList || 'none'}
 ${ftpTestDayLabel ? `FTP test day:${ftpTestDayLabel} — this day MUST be type "ftp_test" with a short standard FTP test protocol (e.g. 20min all-out test with warmup) as the description, not a menu workout.` : ''}

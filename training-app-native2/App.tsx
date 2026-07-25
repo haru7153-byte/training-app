@@ -23,6 +23,7 @@ import {
   DAYS_JP,
   Phase,
   DayType,
+  GoalType,
   ReviewStatus,
   TrainingPlanRow,
   PlanWeekRow,
@@ -30,6 +31,7 @@ import {
   DayReviewResult,
   getActivePlan,
   createTrainingPlan,
+  extendOngoingPlan,
   getPlanDays,
   saveGeneratedWeekDays,
   updatePlanDayReview,
@@ -484,7 +486,13 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
     </KeyboardAvoidingView>
   )
 }
-function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: number; goalFtp: number; goalTSS: number; eventName: string; eventDate: Date }) {
+function PlanScreen({ ftp, goalFtp, goalTSS, goal }: {
+  ftp: number
+  goalFtp: number
+  goalTSS: number
+  goal: { type: GoalType; label: string; eventDate: Date | null; ftpTestEnabled: boolean }
+}) {
+  const { type: goalType, label: eventName, eventDate, ftpTestEnabled } = goal
   const [loadingPlan, setLoadingPlan] = useState(true)
   const [activePlan, setActivePlan] = useState<{ plan: TrainingPlanRow; weeks: PlanWeekRow[] } | null>(null)
   const [currentWeekDays, setCurrentWeekDays] = useState<PlanDayRow[]>([])
@@ -508,7 +516,11 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
   const [pendingRestDays, setPendingRestDays] = useState<Set<number> | null>(null)
   const [savingRestDays, setSavingRestDays] = useState(false)
 
-  const daysToRace = Math.max(0, Math.ceil((eventDate.getTime() - Date.now()) / 86400000))
+  const daysToRace = eventDate ? Math.max(0, Math.ceil((eventDate.getTime() - Date.now()) / 86400000)) : null
+  // activePlan.plan は実際に保存済みのプランのデータ。フォーム上の goal（未保存の変更を含む）とはズレうるので別に持つ。
+  const activeDaysToRace = activePlan?.plan.event_date
+    ? Math.max(0, Math.ceil((parseDateOnly(activePlan.plan.event_date).getTime() - Date.now()) / 86400000))
+    : null
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -539,10 +551,10 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
     const result = await getActivePlan()
     setActivePlan(result)
     setLoadingPlan(false)
-    if (result) await loadCurrentWeek(result.weeks)
+    if (result) await loadCurrentWeek(result.weeks, result.plan)
   }
 
-  async function loadCurrentWeek(weeks: PlanWeekRow[]) {
+  async function loadCurrentWeek(weeks: PlanWeekRow[], plan: TrainingPlanRow) {
     const week = findCurrentWeek(weeks)
     if (!week) return
     setLoadingWeek(true)
@@ -550,6 +562,38 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
     setCurrentWeekDays(days)
     await runReviewPass(days)
     setLoadingWeek(false)
+
+    if (plan.goal_type === 'ongoing') {
+      await maybeExtendOngoingPlan(plan, weeks, week)
+    }
+  }
+
+  /** 日付のない（進行中の）目標のプランは、残り週数が減ってきたら次のブロックを自動生成する。 */
+  async function maybeExtendOngoingPlan(plan: TrainingPlanRow, weeks: PlanWeekRow[], currentWk: PlanWeekRow) {
+    const remaining = weeks.filter(w => w.week_number > currentWk.week_number).length
+    if (remaining >= 3) return
+    const lastWeek = weeks[weeks.length - 1]
+    if (!lastWeek) return
+
+    const multiplier = await new Promise<number>(resolve => {
+      Alert.alert(
+        '次のブロックを準備します',
+        'このまま同じ強度で続けますか？ ペースを調整することもできます。',
+        [
+          { text: 'ゆるめる', onPress: () => resolve(0.85) },
+          { text: 'このまま', onPress: () => resolve(1) },
+          { text: 'もっとハードに', onPress: () => resolve(1.15) },
+        ],
+        { cancelable: false }
+      )
+    })
+
+    try {
+      const newWeeks = await extendOngoingPlan(plan, lastWeek, multiplier)
+      setActivePlan(prev => (prev ? { plan: prev.plan, weeks: [...prev.weeks, ...newWeeks] } : prev))
+    } catch {
+      // 延長に失敗しても致命的ではない。次にこの画面を開いた時にまた判定される。
+    }
   }
 
   async function runReviewPass(days: PlanDayRow[]) {
@@ -675,11 +719,13 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
         weeklyTargetTss: goalTSS,
         platform,
         restDayIndices: Array.from(restDays),
+        goalType,
+        ftpTestEnabled,
       })
       setActivePlan(result)
       setCurrentWeekDays([])
       setReviewMap({})
-      await loadCurrentWeek(result.weeks)
+      await loadCurrentWeek(result.weeks, result.plan)
     } catch {
       setCreateError('プランの作成に失敗しました。もう一度試してください。')
     }
@@ -817,7 +863,9 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
         <View style={[styles.card, { backgroundColor: '#1A1030', borderColor: C.purple + '40' }]}>
           <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, marginBottom: 4 }}>🏁 長期トレーニングプランを作成</Text>
           <Text style={{ fontSize: 14, color: C.sub, marginBottom: 14, lineHeight: 18 }}>
-            {eventName}（{eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}・あと{daysToRace}日）まで、レスト週やFTPテスト日を織り込んだ週ごとの計画を自動で組みます。
+            {goalType === 'race' && eventDate
+              ? `${eventName}（${eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}・あと${daysToRace}日）まで、レスト週やFTPテスト日を織り込んだ週ごとの計画を自動で組みます。`
+              : `「${eventName}」に向けて、負荷を上げる週と回復週を繰り返す長期プランを自動で組みます。目標達成まで区切りなく続けられます。`}
           </Text>
 
           <Text style={{ fontSize: 12, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>プラットフォーム</Text>
@@ -1015,8 +1063,17 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
             <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, marginTop: 4 }}>{activePlan.plan.event_name}</Text>
           </View>
           <View style={{ alignItems: 'center', backgroundColor: phaseColor + '22', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{daysToRace}</Text>
-            <Text style={{ fontSize: 10, color: C.sub }}>日後</Text>
+            {activePlan.plan.goal_type === 'race' && activeDaysToRace != null ? (
+              <>
+                <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{activeDaysToRace}</Text>
+                <Text style={{ fontSize: 10, color: C.sub }}>日後</Text>
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{activePlan.weeks.length}</Text>
+                <Text style={{ fontSize: 10, color: C.sub }}>週目まで生成済</Text>
+              </>
+            )}
           </View>
         </View>
 
@@ -1024,7 +1081,8 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             <View style={{ backgroundColor: phaseColor + '30', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: phaseColor }}>
-                Week {currentWeek.week_number}/{activePlan.weeks.length}・{currentWeek.phase}期
+                Week {currentWeek.week_number}
+                {activePlan.plan.goal_type === 'race' ? `/${activePlan.weeks.length}` : ''}・{currentWeek.phase}期
                 {currentPhaseSegment && weekIndexInPhase ? `（${weekIndexInPhase}/${currentPhaseSegment.weeks.length}週目）` : ''}
               </Text>
             </View>
@@ -1067,7 +1125,11 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
                 )
               })}
             </View>
-            <Text style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>Base → Build → Peak → Taper（現在地は白枠のフェーズ）</Text>
+            <Text style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>
+              {activePlan.plan.goal_type === 'race'
+                ? 'Base → Build → Peak → Taper（現在地は白枠のフェーズ）'
+                : 'Build 3週 → 回復1週 を繰り返し中（現在地は白枠のフェーズ）'}
+            </Text>
           </View>
         )}
 
@@ -1706,7 +1768,16 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
     </ScrollView>
   )
 }
-function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoalsChange: (g: { targetFtp: number; targetTSS: number; eventName: string; targetWeight: number }, ed: Date) => void; onFtpUpdate: (ftp: number) => void }) {
+const ONGOING_GOAL_PRESETS = ['体力づくり', '坂をもっと速く登りたい', 'クリテリウムで速くなりたい']
+
+function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
+  ftp: number
+  onGoalsChange: (g: {
+    targetFtp: number; targetTSS: number; eventName: string; targetWeight: number
+    goalType: GoalType; eventDate: Date | null; ftpTestEnabled: boolean
+  }) => void
+  onFtpUpdate: (ftp: number) => void
+}) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [ftpInput, setFtpInput] = useState('')
@@ -1721,6 +1792,8 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
   const [targetTSS, setTargetTSS] = useState('420')
   const [eventName, setEventName] = useState('グランフォンドKyoto')
   const [eventDate, setEventDate] = useState(new Date('2025-10-15'))
+  const [hasTargetRace, setHasTargetRace] = useState(true)
+  const [ftpTestEnabled, setFtpTestEnabled] = useState(true)
 
   useEffect(() => {
     loadGoals()
@@ -1736,15 +1809,27 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
     if (g.targetTSS)    setTargetTSS(g.targetTSS)
     if (g.eventName)    setEventName(g.eventName)
     if (g.eventDate)    setEventDate(new Date(g.eventDate))
+    setHasTargetRace(g.goalType !== 'ongoing')
+    setFtpTestEnabled(g.ftpTestEnabled !== undefined ? !!g.ftpTestEnabled : true)
   }
 
   async function saveGoals() {
     setSaving(true)
+    const goalType: GoalType = hasTargetRace ? 'race' : 'ongoing'
     await AsyncStorage.setItem('user_goals', JSON.stringify({
       targetFtp, targetWeight, targetTSS, eventName,
       eventDate: eventDate.toISOString(),
+      goalType, ftpTestEnabled,
     }))
-    onGoalsChange({ targetFtp: parseInt(targetFtp) || 320, targetTSS: parseInt(targetTSS) || 420, eventName, targetWeight: parseFloat(targetWeight) || 70 }, eventDate)
+    onGoalsChange({
+      targetFtp: parseInt(targetFtp) || 320,
+      targetTSS: parseInt(targetTSS) || 420,
+      eventName,
+      targetWeight: parseFloat(targetWeight) || 70,
+      goalType,
+      eventDate: hasTargetRace ? eventDate : null,
+      ftpTestEnabled,
+    })
     setSaving(false)
     setEditing(false)
   }
@@ -1780,7 +1865,7 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
     }
   }
 
-  const daysToEvent = Math.max(0, Math.ceil((eventDate.getTime() - Date.now()) / 86400000))
+  const daysToEvent = hasTargetRace ? Math.max(0, Math.ceil((eventDate.getTime() - Date.now()) / 86400000)) : null
   const tFtp = parseFloat(targetFtp)
   const tWeight = parseFloat(targetWeight)
   const ftpPct = Math.min((ftp / tFtp) * 100, 100)
@@ -1804,19 +1889,23 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
       keyboardShouldPersistTaps="handled"
     >
 
-      {/* イベントカード */}
+      {/* イベント/目標カード */}
       <View style={[styles.banner, { flexDirection: 'row', alignItems: 'center', gap: 16 }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.bannerLabel, { color: C.orange }]}>🎯 目標イベント</Text>
+          <Text style={[styles.bannerLabel, { color: C.orange }]}>{hasTargetRace ? '🎯 目標イベント' : '🎯 目標'}</Text>
           <Text style={{ fontSize: 20, fontWeight: '800', color: C.text, marginTop: 6 }}>{eventName}</Text>
           <Text style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
-            {eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+            {hasTargetRace
+              ? eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+              : '日付を区切らず、継続的に取り組む目標です'}
           </Text>
         </View>
-        <View style={{ alignItems: 'center', backgroundColor: C.orange + '22', borderRadius: 16, padding: 16, minWidth: 72 }}>
-          <Text style={{ fontSize: 34, fontWeight: '900', color: C.orange, lineHeight: 40 }}>{daysToEvent}</Text>
-          <Text style={{ fontSize: 10, color: C.sub, marginTop: 2 }}>日後</Text>
-        </View>
+        {hasTargetRace && (
+          <View style={{ alignItems: 'center', backgroundColor: C.orange + '22', borderRadius: 16, padding: 16, minWidth: 72 }}>
+            <Text style={{ fontSize: 34, fontWeight: '900', color: C.orange, lineHeight: 40 }}>{daysToEvent}</Text>
+            <Text style={{ fontSize: 10, color: C.sub, marginTop: 2 }}>日後</Text>
+          </View>
+        )}
       </View>
 
       {/* W/kg サマリー */}
@@ -1918,44 +2007,108 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
         <View style={styles.card}>
           <Text style={[styles.sectionTitle, { marginBottom: 14 }]}>目標を設定</Text>
 
-          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>イベント名</Text>
-          <TextInput style={[styles.input, { marginBottom: 12 }]} value={eventName} onChangeText={setEventName} placeholderTextColor={C.muted} />
+          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>目標としているレース・イベントがある？</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+            {[{ v: true, l: 'ある' }, { v: false, l: 'ない' }].map(o => (
+              <TouchableOpacity
+                key={String(o.v)}
+                onPress={() => setHasTargetRace(o.v)}
+                style={{
+                  flex: 1, padding: 10, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: hasTargetRace === o.v ? C.orange : C.surface,
+                  borderWidth: 1, borderColor: hasTargetRace === o.v ? C.orange : C.border,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: hasTargetRace === o.v ? '#fff' : C.sub }}>{o.l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>開催日</Text>
-          <TouchableOpacity
-            onPress={() => setShowDatePicker(v => !v)}
-            style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: showDatePicker ? C.blue : C.border, borderRadius: 10, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <Text style={{ color: C.text }}>
-              📅 {eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
-            </Text>
-            <Text style={{ color: C.muted, fontSize: 11 }}>{showDatePicker ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-          {showDatePicker && (
+          {hasTargetRace ? (
             <>
-              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
-                <DateTimePicker
-                  value={eventDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  locale="ja-JP"
-                  themeVariant="light"
-                  onChange={(_, d) => {
-                    if (Platform.OS === 'android') setShowDatePicker(false)
-                    if (d) setEventDate(d)
-                  }}
-                />
-              </View>
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(false)}
-                  style={{ backgroundColor: C.blue, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 12 }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>完了</Text>
-                </TouchableOpacity>
+              <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>イベント名</Text>
+              <TextInput style={[styles.input, { marginBottom: 12 }]} value={eventName} onChangeText={setEventName} placeholderTextColor={C.muted} />
+
+              <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>開催日</Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(v => !v)}
+                style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: showDatePicker ? C.blue : C.border, borderRadius: 10, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <Text style={{ color: C.text }}>
+                  📅 {eventDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+                </Text>
+                <Text style={{ color: C.muted, fontSize: 11 }}>{showDatePicker ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <>
+                  <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                    <DateTimePicker
+                      value={eventDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      locale="ja-JP"
+                      themeVariant="light"
+                      onChange={(_, d) => {
+                        if (Platform.OS === 'android') setShowDatePicker(false)
+                        if (d) setEventDate(d)
+                      }}
+                    />
+                  </View>
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      onPress={() => setShowDatePicker(false)}
+                      style={{ backgroundColor: C.blue, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 12 }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '700' }}>完了</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>目標</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {ONGOING_GOAL_PRESETS.map(preset => (
+                  <TouchableOpacity
+                    key={preset}
+                    onPress={() => setEventName(preset)}
+                    style={{
+                      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99,
+                      backgroundColor: eventName === preset ? C.orange : C.surface,
+                      borderWidth: 1, borderColor: eventName === preset ? C.orange : C.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: eventName === preset ? '#fff' : C.sub }}>{preset}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, { marginBottom: 12 }]}
+                value={eventName}
+                onChangeText={setEventName}
+                placeholder="目標を入力（例: 体力づくり）"
+                placeholderTextColor={C.muted}
+              />
+            </>
           )}
+
+          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>長期プランにFTPテスト週を入れる</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+            {[{ v: true, l: '入れる' }, { v: false, l: '入れない' }].map(o => (
+              <TouchableOpacity
+                key={String(o.v)}
+                onPress={() => setFtpTestEnabled(o.v)}
+                style={{
+                  flex: 1, padding: 10, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: ftpTestEnabled === o.v ? C.blue : C.surface,
+                  borderWidth: 1, borderColor: ftpTestEnabled === o.v ? C.blue : C.border,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: ftpTestEnabled === o.v ? '#fff' : C.sub }}>{o.l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>目標FTP</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -2107,8 +2260,11 @@ function AuthScreen() {
 export default function App() {
   const [tab, setTab] = useState('home')
   const [ftp, setFtp] = useState(300)
-  const [goals, setGoals] = useState({ targetFtp: 320, targetTSS: 420, eventName: 'グランフォンドKyoto', targetWeight: 70 })
-  const [eventDate, setEventDate] = useState(new Date('2025-10-15'))
+  const [goals, setGoals] = useState({
+    targetFtp: 320, targetTSS: 420, eventName: 'グランフォンドKyoto', targetWeight: 70,
+    goalType: 'race' as GoalType, ftpTestEnabled: true,
+  })
+  const [eventDate, setEventDate] = useState<Date | null>(new Date('2025-10-15'))
 
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -2136,17 +2292,19 @@ export default function App() {
         targetTSS:    parseInt(g.targetTSS)    || 420,
         eventName:    g.eventName              || 'グランフォンドKyoto',
         targetWeight: parseFloat(g.targetWeight) || 70,
+        goalType:     g.goalType === 'ongoing' ? 'ongoing' : 'race',
+        ftpTestEnabled: g.ftpTestEnabled !== undefined ? !!g.ftpTestEnabled : true,
       })
-      if (g.eventDate) setEventDate(new Date(g.eventDate))
+      setEventDate(g.goalType === 'ongoing' ? null : g.eventDate ? new Date(g.eventDate) : new Date('2025-10-15'))
     })
   }, [session])
 
   const screens: Record<string, JSX.Element> = {
     home:   <HomeScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} />,
-    plan:   <PlanScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} eventName={goals.eventName} eventDate={eventDate} />,
+    plan:   <PlanScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} goal={{ type: goals.goalType, label: goals.eventName, eventDate, ftpTestEnabled: goals.ftpTestEnabled }} />,
     strava: <StravaScreen onFtpUpdate={setFtp} />,
     weight: <WeightScreen goalWeight={goals.targetWeight} />,
-    goals:  <GoalsScreen ftp={ftp} onGoalsChange={(g, ed) => { setGoals(g); setEventDate(ed) }} onFtpUpdate={setFtp} />,
+    goals:  <GoalsScreen ftp={ftp} onGoalsChange={g => { setGoals(g); setEventDate(g.eventDate) }} onFtpUpdate={setFtp} />,
   }
 
   if (authLoading) {
