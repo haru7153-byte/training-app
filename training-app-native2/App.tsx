@@ -1559,8 +1559,16 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
         </View>
       )}
 
-      <TouchableOpacity onPress={() => supabase.auth.signOut()} style={{ alignItems: 'center', padding: 12 }}>
-        <Text style={{ fontSize: 12, color: C.muted }}>ログアウト</Text>
+      <TouchableOpacity
+        onPress={() => supabase.auth.signOut()}
+        style={{
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+          paddingVertical: 12, borderRadius: 10, borderWidth: 1,
+          borderColor: C.red + '40', backgroundColor: C.red + '12',
+        }}
+      >
+        <Text style={{ fontSize: 14 }}>🚪</Text>
+        <Text style={{ fontSize: 13, color: C.red, fontWeight: '700' }}>ログアウト</Text>
       </TouchableOpacity>
     </ScrollView>
     </KeyboardAvoidingView>
@@ -1604,59 +1612,65 @@ function AuthScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 12 }}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: C.text, marginBottom: 4 }}>AI CycleNote</Text>
-          <Text style={{ fontSize: 13, color: C.sub, marginBottom: 12 }}>
-            {stage === 'email' ? 'メールアドレスでログイン' : '届いた6桁コードを入力してください'}
-          </Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ width: '100%', maxWidth: 300, gap: 10 }}>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: C.text, textAlign: 'center', marginBottom: 2 }}>AI CycleNote</Text>
+            <Text style={{ fontSize: 12, color: C.sub, textAlign: 'center', marginBottom: 8 }}>
+              {stage === 'email' ? 'メールアドレスでログイン' : '届いた6桁コードを入力してください'}
+            </Text>
 
-          {stage === 'email' ? (
-            <>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={C.muted}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-              <TouchableOpacity
-                style={[styles.btn, { alignItems: 'center', opacity: sending ? 0.5 : 1 }]}
-                onPress={sendCode}
-                disabled={sending}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{sending ? '送信中...' : 'コードを送信'}</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {message !== '' && <Text style={{ fontSize: 12, color: C.green }}>{message}</Text>}
-              <TextInput
-                style={styles.input}
-                value={code}
-                onChangeText={setCode}
-                placeholder="123456"
-                placeholderTextColor={C.muted}
-                keyboardType="number-pad"
-                textContentType={Platform.OS === 'ios' ? 'oneTimeCode' : undefined}
-                maxLength={6}
-              />
-              <TouchableOpacity
-                style={[styles.btn, { alignItems: 'center', opacity: verifying ? 0.5 : 1 }]}
-                onPress={verifyCode}
-                disabled={verifying}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{verifying ? '確認中...' : '確認してログイン'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setStage('email'); setCode(''); setMessage(''); setError('') }}>
-                <Text style={{ fontSize: 12, color: C.muted, textAlign: 'center' }}>メールアドレスを変更する / 再送信</Text>
-              </TouchableOpacity>
-            </>
-          )}
+            {stage === 'email' ? (
+              <>
+                <TextInput
+                  style={[styles.input, { fontSize: 14, paddingVertical: 9 }]}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={C.muted}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                />
+                <TouchableOpacity
+                  style={[styles.btn, { alignItems: 'center', paddingVertical: 9, opacity: sending ? 0.5 : 1 }]}
+                  onPress={sendCode}
+                  disabled={sending}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{sending ? '送信中...' : 'コードを送信'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {message !== '' && <Text style={{ fontSize: 11, color: C.green, textAlign: 'center' }}>{message}</Text>}
+                <TextInput
+                  style={{
+                    alignSelf: 'center', width: 168, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+                    borderRadius: 10, paddingVertical: 9, color: C.text, fontSize: 20, fontWeight: '700',
+                    letterSpacing: 6, textAlign: 'center',
+                  }}
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="123456"
+                  placeholderTextColor={C.muted}
+                  keyboardType="number-pad"
+                  textContentType={Platform.OS === 'ios' ? 'oneTimeCode' : undefined}
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.btn, { alignItems: 'center', paddingVertical: 9, opacity: verifying ? 0.5 : 1 }]}
+                  onPress={verifyCode}
+                  disabled={verifying}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{verifying ? '確認中...' : '確認してログイン'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setStage('email'); setCode(''); setMessage(''); setError('') }}>
+                  <Text style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>メールアドレスを変更する / 再送信</Text>
+                </TouchableOpacity>
+              </>
+            )}
 
-          {error !== '' && <Text style={{ fontSize: 12, color: C.red }}>{error}</Text>}
+            {error !== '' && <Text style={{ fontSize: 11, color: C.red, textAlign: 'center' }}>{error}</Text>}
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
