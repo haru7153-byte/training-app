@@ -490,9 +490,9 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal }: {
   ftp: number
   goalFtp: number
   goalTSS: number
-  goal: { type: GoalType; label: string; eventDate: Date | null; ftpTestEnabled: boolean }
+  goal: { type: GoalType; label: string; eventDate: Date | null; ftpTestEnabled: boolean; trainingFocus: TrainingFocus }
 }) {
-  const { type: goalType, label: eventName, eventDate, ftpTestEnabled } = goal
+  const { type: goalType, label: eventName, eventDate, ftpTestEnabled, trainingFocus } = goal
   const [loadingPlan, setLoadingPlan] = useState(true)
   const [activePlan, setActivePlan] = useState<{ plan: TrainingPlanRow; weeks: PlanWeekRow[] } | null>(null)
   const [currentWeekDays, setCurrentWeekDays] = useState<PlanDayRow[]>([])
@@ -744,6 +744,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal }: {
           ftp,
           targetFtp: goalFtp,
           eventName,
+          trainingFocus,
           platform: activePlan.plan.platform,
           phase: week.phase,
           weekTargetTss: week.target_tss,
@@ -1768,13 +1769,25 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
     </ScrollView>
   )
 }
-const ONGOING_GOAL_PRESETS = ['体力づくり', '坂をもっと速く登りたい', 'クリテリウムで速くなりたい']
+export type TrainingFocus = 'balanced' | 'climbing' | 'criterium'
+
+const ONGOING_GOAL_PRESETS: { label: string; focus: TrainingFocus }[] = [
+  { label: '体力づくり', focus: 'balanced' },
+  { label: '坂をもっと速く登りたい', focus: 'climbing' },
+  { label: 'クリテリウムで速くなりたい', focus: 'criterium' },
+]
+
+const TSS_PRESETS = [
+  { label: 'ライト', desc: '週3〜4回・軽め', value: 280 },
+  { label: '標準', desc: '週4〜5回・標準的な負荷', value: 400 },
+  { label: 'しっかり', desc: '週5〜6回・高負荷', value: 520 },
+]
 
 function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
   ftp: number
   onGoalsChange: (g: {
     targetFtp: number; targetTSS: number; eventName: string; targetWeight: number
-    goalType: GoalType; eventDate: Date | null; ftpTestEnabled: boolean
+    goalType: GoalType; eventDate: Date | null; ftpTestEnabled: boolean; trainingFocus: TrainingFocus
   }) => void
   onFtpUpdate: (ftp: number) => void
 }) {
@@ -1786,6 +1799,7 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
   const [currentWeight, setCurrentWeight] = useState<number | null>(null)
   const [startWeight, setStartWeight] = useState<number | null>(null)
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTssInput, setShowTssInput] = useState(false)
 
   const [targetFtp, setTargetFtp] = useState('320')
   const [targetWeight, setTargetWeight] = useState('70.0')
@@ -1793,6 +1807,7 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
   const [eventName, setEventName] = useState('グランフォンドKyoto')
   const [eventDate, setEventDate] = useState(new Date('2025-10-15'))
   const [hasTargetRace, setHasTargetRace] = useState(true)
+  const [trainingFocus, setTrainingFocus] = useState<TrainingFocus>('balanced')
   const [ftpTestEnabled, setFtpTestEnabled] = useState(true)
 
   useEffect(() => {
@@ -1811,15 +1826,17 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
     if (g.eventDate)    setEventDate(new Date(g.eventDate))
     setHasTargetRace(g.goalType !== 'ongoing')
     setFtpTestEnabled(g.ftpTestEnabled !== undefined ? !!g.ftpTestEnabled : true)
+    setTrainingFocus(g.trainingFocus === 'climbing' || g.trainingFocus === 'criterium' ? g.trainingFocus : 'balanced')
   }
 
   async function saveGoals() {
     setSaving(true)
     const goalType: GoalType = hasTargetRace ? 'race' : 'ongoing'
+    const focus: TrainingFocus = hasTargetRace ? 'balanced' : trainingFocus
     await AsyncStorage.setItem('user_goals', JSON.stringify({
       targetFtp, targetWeight, targetTSS, eventName,
       eventDate: eventDate.toISOString(),
-      goalType, ftpTestEnabled,
+      goalType, ftpTestEnabled, trainingFocus: focus,
     }))
     onGoalsChange({
       targetFtp: parseInt(targetFtp) || 320,
@@ -1829,6 +1846,7 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
       goalType,
       eventDate: hasTargetRace ? eventDate : null,
       ftpTestEnabled,
+      trainingFocus: focus,
     })
     setSaving(false)
     setEditing(false)
@@ -2071,15 +2089,15 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                 {ONGOING_GOAL_PRESETS.map(preset => (
                   <TouchableOpacity
-                    key={preset}
-                    onPress={() => setEventName(preset)}
+                    key={preset.label}
+                    onPress={() => { setEventName(preset.label); setTrainingFocus(preset.focus) }}
                     style={{
                       paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99,
-                      backgroundColor: eventName === preset ? C.orange : C.surface,
-                      borderWidth: 1, borderColor: eventName === preset ? C.orange : C.border,
+                      backgroundColor: eventName === preset.label ? C.orange : C.surface,
+                      borderWidth: 1, borderColor: eventName === preset.label ? C.orange : C.border,
                     }}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: eventName === preset ? '#fff' : C.sub }}>{preset}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: eventName === preset.label ? '#fff' : C.sub }}>{preset.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -2090,6 +2108,9 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
                 placeholder="目標を入力（例: 体力づくり）"
                 placeholderTextColor={C.muted}
               />
+              <Text style={{ fontSize: 10, color: C.muted, marginTop: -8, marginBottom: 12, lineHeight: 15 }}>
+                上のボタンを選ぶと、練習内容（坂向け・スプリント向けなど）もそれに合わせて生成されます。自由入力した場合は標準的な内容になります。
+              </Text>
             </>
           )}
 
@@ -2122,8 +2143,33 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
             <Text style={{ color: C.sub }}>kg</Text>
           </View>
 
-          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>週間目標TSS</Text>
-          <TextInput style={[styles.input, { marginBottom: 16 }]} value={targetTSS} onChangeText={setTargetTSS} keyboardType="numeric" placeholderTextColor={C.muted} />
+          <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>週にどれくらいのボリュームで走りたいですか？</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+            {TSS_PRESETS.map(p => (
+              <TouchableOpacity
+                key={p.label}
+                onPress={() => { setTargetTSS(String(p.value)); setShowTssInput(false) }}
+                style={{
+                  flex: 1, padding: 8, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: targetTSS === String(p.value) ? C.blue : C.surface,
+                  borderWidth: 1, borderColor: targetTSS === String(p.value) ? C.blue : C.border,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: targetTSS === String(p.value) ? '#fff' : C.sub }}>{p.label}</Text>
+                <Text style={{ fontSize: 9, color: targetTSS === String(p.value) ? '#fff' : C.muted, marginTop: 2, textAlign: 'center' }}>{p.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {!showTssInput ? (
+            <TouchableOpacity onPress={() => setShowTssInput(true)} style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 11, color: C.blue, fontWeight: '700' }}>TSSの数値を直接指定する（現在: {targetTSS}）</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <Text style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>週間目標TSS（数値）</Text>
+              <TextInput style={[styles.input, { marginBottom: 16 }]} value={targetTSS} onChangeText={setTargetTSS} keyboardType="numeric" placeholderTextColor={C.muted} />
+            </>
+          )}
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity
@@ -2262,7 +2308,7 @@ export default function App() {
   const [ftp, setFtp] = useState(300)
   const [goals, setGoals] = useState({
     targetFtp: 320, targetTSS: 420, eventName: 'グランフォンドKyoto', targetWeight: 70,
-    goalType: 'race' as GoalType, ftpTestEnabled: true,
+    goalType: 'race' as GoalType, ftpTestEnabled: true, trainingFocus: 'balanced' as TrainingFocus,
   })
   const [eventDate, setEventDate] = useState<Date | null>(new Date('2025-10-15'))
 
@@ -2294,6 +2340,7 @@ export default function App() {
         targetWeight: parseFloat(g.targetWeight) || 70,
         goalType:     g.goalType === 'ongoing' ? 'ongoing' : 'race',
         ftpTestEnabled: g.ftpTestEnabled !== undefined ? !!g.ftpTestEnabled : true,
+        trainingFocus: g.trainingFocus === 'climbing' || g.trainingFocus === 'criterium' ? g.trainingFocus : 'balanced',
       })
       setEventDate(g.goalType === 'ongoing' ? null : g.eventDate ? new Date(g.eventDate) : new Date('2025-10-15'))
     })
@@ -2301,7 +2348,7 @@ export default function App() {
 
   const screens: Record<string, JSX.Element> = {
     home:   <HomeScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} />,
-    plan:   <PlanScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} goal={{ type: goals.goalType, label: goals.eventName, eventDate, ftpTestEnabled: goals.ftpTestEnabled }} />,
+    plan:   <PlanScreen ftp={ftp} goalFtp={goals.targetFtp} goalTSS={goals.targetTSS} goal={{ type: goals.goalType, label: goals.eventName, eventDate, ftpTestEnabled: goals.ftpTestEnabled, trainingFocus: goals.trainingFocus }} />,
     strava: <StravaScreen onFtpUpdate={setFtp} />,
     weight: <WeightScreen goalWeight={goals.targetWeight} />,
     goals:  <GoalsScreen ftp={ftp} onGoalsChange={g => { setGoals(g); setEventDate(g.eventDate) }} onFtpUpdate={setFtp} />,

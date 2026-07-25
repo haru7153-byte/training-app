@@ -27,6 +27,16 @@ function workoutMenuFor(platform) {
   return ZWIFT_WORKOUTS
 }
 
+const FOCUS_GUIDANCE = {
+  balanced: 'General fitness focus: favor Endurance and Tempo work, with occasional Sweet Spot/Threshold. Minimize pure Anaerobic/Sprint work.',
+  climbing: 'Climbing focus: favor sustained Sweet Spot and Threshold efforts (climbing-pace power endurance), with some VO2max for steep sections. Minimize short Sprint/Anaerobic work.',
+  criterium: 'Criterium racing focus: favor repeated high-intensity efforts — VO2max, Anaerobic, and Sprint intervals with short recoveries (surges/attacks/bunch-sprint pace). Include some Tempo/Endurance only on easier days.',
+}
+
+function focusGuidanceFor(trainingFocus) {
+  return FOCUS_GUIDANCE[trainingFocus] || FOCUS_GUIDANCE.balanced
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -36,6 +46,7 @@ export default async function handler(req, res) {
     ftp,
     targetFtp,
     eventName,
+    trainingFocus = 'balanced',
     platform = 'Zwift',
     phase,
     weekTargetTss,
@@ -56,6 +67,7 @@ export default async function handler(req, res) {
 FTP:${ftp}W Target:${targetFtp}W Goal:"${eventName || ''}" Platform:${platform}
 Phase:${phase}${isRecoveryWeek ? ' (recovery week — keep intensity low)' : ''} Weekly target TSS:${weekTargetTss}
 Training days:${trainingDays || 'none'} Rest days:${restDaysList || 'none'}
+${isRecoveryWeek ? '' : `Training focus: ${focusGuidanceFor(trainingFocus)}`}
 ${ftpTestDayLabel ? `FTP test day:${ftpTestDayLabel} — this day MUST be type "ftp_test" with a short standard FTP test protocol (e.g. 20min all-out test with warmup) as the description, not a menu workout.` : ''}
 
 Available workouts:
