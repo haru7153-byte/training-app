@@ -33,6 +33,7 @@ import {
   getPlanDays,
   saveGeneratedWeekDays,
   updatePlanDayReview,
+  updateWeekRestDays,
   classifyDayReview,
   parseDateOnly,
   formatDateOnly,
@@ -501,6 +502,10 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
   const [reviewMap, setReviewMap] = useState<Record<string, DayReviewResult>>({})
   const [reviewingDayId, setReviewingDayId] = useState<string | null>(null)
 
+  const [editingRest, setEditingRest] = useState(false)
+  const [pendingRestDays, setPendingRestDays] = useState<Set<number> | null>(null)
+  const [savingRestDays, setSavingRestDays] = useState(false)
+
   const daysToRace = Math.max(0, Math.ceil((eventDate.getTime() - Date.now()) / 86400000))
 
   const today = new Date()
@@ -575,6 +580,49 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
       next.has(idx) ? next.delete(idx) : next.add(idx)
       return next
     })
+  }
+
+  function openRestDayEditor(week: PlanWeekRow) {
+    setPendingRestDays(new Set(week.rest_day_indices))
+    setEditingRest(true)
+  }
+
+  function closeRestDayEditor() {
+    setEditingRest(false)
+    setPendingRestDays(null)
+  }
+
+  function togglePendingRestDay(idx: number) {
+    setPendingRestDays(prev => {
+      const next = new Set(prev ?? [])
+      next.has(idx) ? next.delete(idx) : next.add(idx)
+      return next
+    })
+  }
+
+  async function saveRestDayEdits(week: PlanWeekRow) {
+    if (!pendingRestDays) return
+    setSavingRestDays(true)
+    try {
+      const indices = Array.from(pendingRestDays)
+      await updateWeekRestDays(week.id, indices)
+      setActivePlan(prev =>
+        prev
+          ? {
+              plan: prev.plan,
+              weeks: prev.weeks.map(w =>
+                w.id === week.id ? { ...w, rest_day_indices: indices.sort((a, b) => a - b), detail_status: 'pending' as const } : w
+              ),
+            }
+          : prev
+      )
+      setCurrentWeekDays([])
+      setReviewMap({})
+      closeRestDayEditor()
+    } catch {
+      setWeekGenError('レスト日の変更に失敗しました。もう一度試してください。')
+    }
+    setSavingRestDays(false)
   }
 
   async function createPlan() {
@@ -689,6 +737,25 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
   const currentWeek = activePlan ? findCurrentWeek(activePlan.weeks) : null
   const phaseColor = currentWeek ? PHASE_COLORS[currentWeek.phase] : C.blue
 
+  const todayStr = formatDateOnly(today)
+  const todayDay = currentWeekDays.find(d => d.date === todayStr) || null
+  const todayReview = todayDay ? reviewMap[todayDay.id] : undefined
+  const todayScore = todayReview?.achievementPct != null ? Math.min(Math.round(todayReview.achievementPct), 100) : null
+  const todayScoreColor = todayScore == null ? C.sub : todayScore >= 85 ? C.green : todayScore >= 50 ? C.orange : C.red
+
+  // 直近の連続達成日数（今週分のみ。ワークアウト達成 or 休養きちんと取れた日が対象）
+  let streakDays = 0
+  for (const d of [...currentWeekDays].filter(d => parseDateOnly(d.date) <= today).reverse()) {
+    const status = reviewMap[d.id]?.reviewStatus || d.review_status
+    if (status === 'completed' || status === 'rest_ok') streakDays++
+    else break
+  }
+  const weekWorkoutScores = currentWeekDays
+    .map(d => reviewMap[d.id]?.achievementPct)
+    .filter((v): v is number => v != null)
+  const weekAvgScore =
+    weekWorkoutScores.length > 0 ? Math.round(weekWorkoutScores.reduce((s, v) => s + Math.min(v, 100), 0) / weekWorkoutScores.length) : null
+
   if (loadingPlan) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -763,6 +830,94 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
+      {/* ── 今日の採点 ── */}
+      {todayDay && (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '14',
+              borderColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '40',
+            },
+          ]}
+        >
+          <Text style={{ fontSize: 10, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>
+            今日の採点・{today.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}（{DAYS_JP[todayDay.day_of_week]}）
+          </Text>
+
+          {todayDay.type === 'rest' ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.cyan + '22', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 30 }}>😴</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: C.text }}>計画通りの休養日</Text>
+                <Text style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>回復もトレーニングのうちです</Text>
+              </View>
+            </View>
+          ) : todayScore == null ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.muted + '22', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 26 }}>⏳</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: C.text }}>{todayDay.name || 'ワークアウト予定'}</Text>
+                <Text style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>実施してStravaに同期すると、ここに採点が表示されます</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <View style={{ width: 72, height: 72 }}>
+                <Svg width={72} height={72} viewBox="0 0 72 72">
+                  <Circle cx={36} cy={36} r={30} fill="none" stroke={C.border} strokeWidth={7} />
+                  <Circle
+                    cx={36} cy={36} r={30} fill="none" stroke={todayScoreColor} strokeWidth={7}
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 30}`}
+                    strokeDashoffset={`${2 * Math.PI * 30 * (1 - todayScore / 100)}`}
+                    transform="rotate(-90 36 36)"
+                  />
+                </Svg>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 20, fontWeight: '900', color: todayScoreColor }}>{todayScore}</Text>
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: C.text }}>{todayDay.name}</Text>
+                <Text style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+                  予定 {todayDay.duration}分・TSS{todayDay.planned_tss}　実績 {todayReview?.actualDuration}分・TSS{todayReview?.actualTss}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {todayDay.type !== 'rest' && todayScore == null ? null : todayDay.review_comment ? (
+            <Text style={{ fontSize: 11, color: C.muted, marginTop: 12, lineHeight: 16 }}>💬 {todayDay.review_comment}</Text>
+          ) : (
+            <TouchableOpacity onPress={() => generateReviewComment(todayDay)} disabled={reviewingDayId === todayDay.id} style={{ marginTop: 10 }}>
+              <Text style={{ fontSize: 11, color: reviewingDayId === todayDay.id ? C.muted : C.blue, fontWeight: '700' }}>
+                {reviewingDayId === todayDay.id ? '⏳ 生成中...' : '🤖 AIレビューを見る'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {streakDays > 0 && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>🔥 {streakDays}日</Text>
+                <Text style={{ fontSize: 9, color: C.sub, marginTop: 1 }}>連続で計画通り</Text>
+              </View>
+              {weekAvgScore != null && (
+                <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>{weekAvgScore}点</Text>
+                  <Text style={{ fontSize: 9, color: C.sub, marginTop: 1 }}>週間平均(運動日)</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* ── プラン概要 ── */}
       <View style={[styles.card, { backgroundColor: phaseColor + '12', borderColor: phaseColor + '40' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -813,11 +968,52 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
           ))}
         </ScrollView>
 
-        <TouchableOpacity onPress={() => (confirmRegenerate ? createPlan() : setConfirmRegenerate(true))} style={{ marginTop: 12, alignSelf: 'flex-start' }}>
-          <Text style={{ fontSize: 11, color: confirmRegenerate ? C.red : C.muted }}>
-            {confirmRegenerate ? 'もう一度タップで再作成（現在のプランは破棄されます）' : '🔄 プランを作り直す'}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 12 }}>
+          {currentWeek && (
+            <TouchableOpacity onPress={() => (editingRest ? closeRestDayEditor() : openRestDayEditor(currentWeek))}>
+              <Text style={{ fontSize: 11, color: editingRest ? C.red : C.blue, fontWeight: '700' }}>
+                {editingRest ? '✕ 編集をやめる' : '✏️ レスト日を編集'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => (confirmRegenerate ? createPlan() : setConfirmRegenerate(true))}>
+            <Text style={{ fontSize: 11, color: confirmRegenerate ? C.red : C.muted }}>
+              {confirmRegenerate ? 'もう一度タップで再作成（現在のプランは破棄されます）' : '🔄 プランを作り直す'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {editingRest && currentWeek && pendingRestDays && (
+          <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border, borderStyle: 'dashed' }}>
+            <Text style={{ fontSize: 11, color: C.sub, lineHeight: 16, marginBottom: 10 }}>
+              Week {currentWeek.week_number} の休養曜日をタップして変更します。保存すると、この週のワークアウト内容を作り直します。
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 5 }}>
+              {DAYS_JP.map((label, i) => {
+                const isRest = pendingRestDays.has(i)
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => togglePendingRestDay(i)}
+                    style={{
+                      flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center',
+                      backgroundColor: isRest ? C.muted + '30' : C.orange + '22',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: isRest ? C.sub : C.orange }}>{label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+            <TouchableOpacity
+              onPress={() => saveRestDayEdits(currentWeek)}
+              disabled={savingRestDays}
+              style={{ backgroundColor: savingRestDays ? C.muted : C.blue, borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 12 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{savingRestDays ? '保存中...' : '変更を保存'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* ── 今週の詳細 ── */}

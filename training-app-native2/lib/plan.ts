@@ -297,6 +297,22 @@ export async function getPlanDays(weekId: string): Promise<PlanDayRow[]> {
   return data || []
 }
 
+/**
+ * Changes which weekdays are rest days for one already-created week.
+ * Existing day-level detail no longer matches the new rest pattern, so it's
+ * cleared and the week is marked pending again — the caller regenerates it
+ * the same way a freshly-scheduled week gets its detail generated.
+ */
+export async function updateWeekRestDays(weekId: string, restDayIndices: number[]): Promise<void> {
+  const { error: deleteError } = await supabase.from('plan_day').delete().eq('plan_week_id', weekId)
+  if (deleteError) throw deleteError
+  const { error: updateError } = await supabase
+    .from('plan_week')
+    .update({ rest_day_indices: [...restDayIndices].sort((a, b) => a - b), detail_status: 'pending' })
+    .eq('id', weekId)
+  if (updateError) throw updateError
+}
+
 export async function saveGeneratedWeekDays(
   weekId: string,
   days: {
