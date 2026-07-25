@@ -301,7 +301,7 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {[
-          { label: '現在', val: latest ? `${latest} kg` : '—', color: C.text },
+          { label: '現在', val: latest ? `${latest.toFixed(1)} kg` : '—', color: C.text },
           { label: '目標', val: `${goalWeight} kg`, color: C.cyan },
           { label: '変化', val: `${diff} kg`, color: parseFloat(diff) < 0 ? C.green : C.red },
         ].map((s, i) => (
@@ -458,9 +458,9 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
                   </View>
                 ) : (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{d.w} kg</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>{d.w.toFixed(1)} kg</Text>
                     <TouchableOpacity
-                      onPress={() => { setEditingId(d.id); setEditValue(String(d.w)) }}
+                      onPress={() => { setEditingId(d.id); setEditValue(d.w.toFixed(1)) }}
                       style={{ backgroundColor: `${C.blue}22`, borderRadius: 6, padding: 6, paddingHorizontal: 10 }}
                     >
                       <Text style={{ fontSize: 11, color: C.blue, fontWeight: '700' }}>編集</Text>
@@ -1463,7 +1463,7 @@ function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: { ftp: number; onGoals
             )}
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: C.text }}>{currentWeight} kg</Text>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: C.text }}>{currentWeight.toFixed(1)} kg</Text>
             <Text style={{ fontSize: 16, fontWeight: '700', color: C.cyan }}>目標 {tWeight} kg</Text>
           </View>
           {weightPct > 0 && (
