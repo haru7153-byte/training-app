@@ -35,6 +35,7 @@ import {
   updatePlanDayReview,
   classifyDayReview,
   parseDateOnly,
+  formatDateOnly,
 } from './lib/plan'
 
 const C = {
@@ -1034,14 +1035,27 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
   }
 
   async function analyzeWithAI() {
-    if (activities.length === 0) return
     setAnalyzing(true)
     setAiAnalysis(null)
     try {
+      const validToken = await getValidToken()
+      if (!validToken) { setAnalyzing(false); return }
+
+      // 過去7日分を、活動が無い日＝休息日も含めて丸ごと渡す（実施日だけを見た偏った分析にしない）
+      const sevenDaysAgoUnix = Math.floor(Date.now() / 1000) - 7 * 86400
+      const weekActivities = await fetchActivitiesSince(sevenDaysAgoUnix, validToken)
+      const byDate = activitiesByLocalDate(weekActivities)
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date()
+        d.setDate(d.getDate() - (6 - i))
+        const dateStr = formatDateOnly(d)
+        return { date: dateStr, activities: byDate.get(dateStr) || [] }
+      })
+
       const r = await fetch(`${VERCEL_BASE}/api/analyze-activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activities: activities.slice(0, 10) }),
+        body: JSON.stringify({ days }),
       })
       const data = await r.json()
       if (data && !data.error) setAiAnalysis(data)
@@ -1175,7 +1189,7 @@ function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
                 <Text style={{ fontSize: 22 }}>🤖</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: C.text }}>Stravaデータ AI分析</Text>
-                  <Text style={{ fontSize: 10, color: C.sub }}>直近の活動から疲労・強度バランスを分析</Text>
+                  <Text style={{ fontSize: 10, color: C.sub }}>過去7日間（休息日も含む）から疲労・強度バランスを分析</Text>
                 </View>
               </View>
               <TouchableOpacity
