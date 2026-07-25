@@ -237,6 +237,7 @@ export async function getActivePlan(): Promise<{ plan: TrainingPlanRow; weeks: P
 export async function createTrainingPlan(input: {
   eventName: string
   eventDate: Date
+  startDate: Date
   startingFtp: number
   goalFtp: number
   weeklyTargetTss: number
@@ -245,13 +246,12 @@ export async function createTrainingPlan(input: {
 }): Promise<{ plan: TrainingPlanRow; weeks: PlanWeekRow[] }> {
   await supabase.from('training_plan').update({ status: 'archived' }).eq('status', 'active')
 
-  const today = new Date()
   const { data: plan, error: planError } = await supabase
     .from('training_plan')
     .insert({
       event_name: input.eventName,
       event_date: toDateStr(input.eventDate),
-      start_date: toDateStr(today),
+      start_date: toDateStr(input.startDate),
       starting_ftp: input.startingFtp,
       goal_ftp: input.goalFtp,
       weekly_target_tss: input.weeklyTargetTss,
@@ -264,7 +264,7 @@ export async function createTrainingPlan(input: {
   if (planError || !plan) throw planError || new Error('failed to create plan')
 
   const schedule = computeWeekSchedule({
-    today,
+    today: input.startDate,
     eventDate: input.eventDate,
     weeklyTargetTss: input.weeklyTargetTss,
     restDayIndices: input.restDayIndices,

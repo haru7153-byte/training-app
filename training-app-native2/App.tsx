@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg'
@@ -492,9 +492,11 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
 
   const [platform, setPlatform] = useState('Zwift')
   const [restDays, setRestDays] = useState<Set<number>>(new Set([1, 3, 6])) // 火,木,日
+  const [startDate, setStartDate] = useState(new Date())
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+  const [showRecreateForm, setShowRecreateForm] = useState(false)
 
   const [generatingWeek, setGeneratingWeek] = useState(false)
   const [weekGenError, setWeekGenError] = useState('')
@@ -512,6 +514,14 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
   today.setHours(0, 0, 0, 0)
 
   useEffect(() => { loadPlan() }, [])
+
+  // フォームの初期値を、既存プランがあればその設定に同期する（作り直す時に別設定になってしまうのを防ぐ）
+  useEffect(() => {
+    if (!activePlan) return
+    setPlatform(activePlan.plan.platform)
+    setRestDays(new Set(activePlan.plan.rest_day_indices))
+    setStartDate(parseDateOnly(activePlan.plan.start_date))
+  }, [activePlan?.plan.id])
 
   function findCurrentWeek(weeks: PlanWeekRow[]): PlanWeekRow | null {
     if (weeks.length === 0) return null
@@ -600,6 +610,21 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
     })
   }
 
+  function confirmSaveRestDayEdits(week: PlanWeekRow) {
+    if (week.detail_status !== 'generated') {
+      saveRestDayEdits(week)
+      return
+    }
+    Alert.alert(
+      'この週の内容を作り直しますか？',
+      `Week ${week.week_number} に生成済みのワークアウト内容は削除され、変更後の休養日で作り直す必要があります。`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '保存して作り直す', style: 'destructive', onPress: () => saveRestDayEdits(week) },
+      ]
+    )
+  }
+
   async function saveRestDayEdits(week: PlanWeekRow) {
     if (!pendingRestDays) return
     setSavingRestDays(true)
@@ -625,14 +650,26 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
     setSavingRestDays(false)
   }
 
+  function confirmCreatePlan() {
+    Alert.alert(
+      activePlan ? 'プランを作り直しますか？' : 'プランを作成しますか？',
+      activePlan ? '現在のプラン（今週までの記録を含む）は破棄され、新しいプランに置き換わります。この操作は取り消せません。' : undefined,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: activePlan ? '作り直す' : '作成する', style: activePlan ? 'destructive' : 'default', onPress: createPlan },
+      ]
+    )
+  }
+
   async function createPlan() {
     setCreating(true)
     setCreateError('')
-    setConfirmRegenerate(false)
+    setShowRecreateForm(false)
     try {
       const result = await createTrainingPlan({
         eventName,
         eventDate,
+        startDate,
         startingFtp: ftp,
         goalFtp,
         weeklyTargetTss: goalTSS,
@@ -737,6 +774,16 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
   const currentWeek = activePlan ? findCurrentWeek(activePlan.weeks) : null
   const phaseColor = currentWeek ? PHASE_COLORS[currentWeek.phase] : C.blue
 
+  // 週を連続するフェーズごとにまとめて、今どの区間の何週目にいるかを表示するためのもの
+  const phaseSegments: { phase: Phase; weeks: PlanWeekRow[] }[] = []
+  for (const w of activePlan?.weeks ?? []) {
+    const last = phaseSegments[phaseSegments.length - 1]
+    if (last && last.phase === w.phase) last.weeks.push(w)
+    else phaseSegments.push({ phase: w.phase, weeks: [w] })
+  }
+  const currentPhaseSegment = phaseSegments.find(seg => currentWeek && seg.weeks.some(w => w.id === currentWeek.id))
+  const weekIndexInPhase = currentPhaseSegment && currentWeek ? currentPhaseSegment.weeks.findIndex(w => w.id === currentWeek.id) + 1 : null
+
   const todayStr = formatDateOnly(today)
   const todayDay = currentWeekDays.find(d => d.date === todayStr) || null
   const todayReview = todayDay ? reviewMap[todayDay.id] : undefined
@@ -812,6 +859,48 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
               )
             })}
           </View>
+
+          <Text style={{ fontSize: 12, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>プラン開始日</Text>
+          <TouchableOpacity
+            onPress={() => setShowStartDatePicker(v => !v)}
+            style={{
+              backgroundColor: C.surface, borderWidth: 1, borderColor: showStartDatePicker ? C.purple : C.border,
+              borderRadius: 10, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ color: C.text, fontSize: 14 }}>
+              📅 {startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+            </Text>
+            <Text style={{ color: C.muted, fontSize: 11 }}>{showStartDatePicker ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {showStartDatePicker && (
+            <>
+              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                <DateTimePicker
+                  value={startDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  locale="ja-JP"
+                  themeVariant="light"
+                  onChange={(_, date) => {
+                    if (Platform.OS === 'android') setShowStartDatePicker(false)
+                    if (date) setStartDate(date)
+                  }}
+                />
+              </View>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  onPress={() => setShowStartDatePicker(false)}
+                  style={{ backgroundColor: C.purple, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 8 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>完了</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+          <Text style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 16 }}>
+            フェーズ配分（Base/Build/Peak/Taper）はこの日を起点に計算されます。作り直すときも同じ開始日にすれば、配分がズレません。
+          </Text>
 
           <TouchableOpacity
             onPress={createPlan}
@@ -934,7 +1023,10 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
         {currentWeek && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             <View style={{ backgroundColor: phaseColor + '30', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: phaseColor }}>Week {currentWeek.week_number}・{currentWeek.phase}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: phaseColor }}>
+                Week {currentWeek.week_number}/{activePlan.weeks.length}・{currentWeek.phase}期
+                {currentPhaseSegment && weekIndexInPhase ? `（${weekIndexInPhase}/${currentPhaseSegment.weeks.length}週目）` : ''}
+              </Text>
             </View>
             {currentWeek.is_recovery_week && (
               <View style={{ backgroundColor: C.cyan + '30', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4 }}>
@@ -947,6 +1039,35 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
               </View>
             )}
             <Text style={{ fontSize: 13, color: C.sub }}>週間目標TSS {currentWeek.target_tss}</Text>
+          </View>
+        )}
+
+        {phaseSegments.length > 0 && (
+          <View style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 3, height: 22 }}>
+              {phaseSegments.map((seg, i) => {
+                const isCurrent = seg === currentPhaseSegment
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      flex: seg.weeks.length, borderRadius: 6, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: isCurrent ? PHASE_COLORS[seg.phase] : PHASE_COLORS[seg.phase] + '30',
+                      borderWidth: isCurrent ? 1.5 : 0,
+                      borderColor: '#fff',
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={{ fontSize: 9, fontWeight: '800', color: isCurrent ? '#fff' : PHASE_COLORS[seg.phase] }}
+                    >
+                      {seg.phase}
+                    </Text>
+                  </View>
+                )
+              })}
+            </View>
+            <Text style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>Base → Build → Peak → Taper（現在地は白枠のフェーズ）</Text>
           </View>
         )}
 
@@ -976,12 +1097,108 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
               </Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => (confirmRegenerate ? createPlan() : setConfirmRegenerate(true))}>
-            <Text style={{ fontSize: 13, color: confirmRegenerate ? C.red : C.muted }}>
-              {confirmRegenerate ? 'もう一度タップで再作成（現在のプランは破棄されます）' : '🔄 プランを作り直す'}
+          <TouchableOpacity onPress={() => setShowRecreateForm(v => !v)}>
+            <Text style={{ fontSize: 13, color: showRecreateForm ? C.red : C.muted, fontWeight: '700' }}>
+              {showRecreateForm ? '✕ 作り直すのをやめる' : '🔄 プランを作り直す'}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {showRecreateForm && (
+          <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border, borderStyle: 'dashed' }}>
+            <Text style={{ fontSize: 13, color: C.sub, lineHeight: 16, marginBottom: 12 }}>
+              現在のプランの設定を引き継いでいます。開始日を変えなければフェーズ配分はズレません。内容を確認・調整してから作り直してください。
+            </Text>
+
+            <Text style={{ fontSize: 12, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>プラットフォーム</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {['Zwift', 'MyWhoosh', '両方'].map(p => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => setPlatform(p)}
+                  style={{
+                    flex: 1, padding: 8, borderRadius: 10,
+                    backgroundColor: platform === p ? C.blue : C.surface,
+                    borderWidth: 1,
+                    borderColor: platform === p ? C.blue : C.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: platform === p ? '#fff' : C.sub, textAlign: 'center' }}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ fontSize: 12, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>希望レスト曜日（通常週）</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+              {DAYS_JP.map((day, i) => {
+                const isRest = restDays.has(i)
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => toggleRestDay(i)}
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                      backgroundColor: isRest ? C.surface : C.blue + '33',
+                      borderWidth: 1,
+                      borderColor: isRest ? C.border : C.blue,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: isRest ? C.muted : C.blue }}>{day}</Text>
+                    <Text style={{ fontSize: 9, color: isRest ? C.muted : C.blue, marginTop: 2 }}>{isRest ? '休' : '練'}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <Text style={{ fontSize: 12, color: C.sub, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>プラン開始日</Text>
+            <TouchableOpacity
+              onPress={() => setShowStartDatePicker(v => !v)}
+              style={{
+                backgroundColor: C.surface, borderWidth: 1, borderColor: showStartDatePicker ? C.blue : C.border,
+                borderRadius: 10, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              }}
+            >
+              <Text style={{ color: C.text, fontSize: 14 }}>
+                📅 {startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+              </Text>
+              <Text style={{ color: C.muted, fontSize: 11 }}>{showStartDatePicker ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {showStartDatePicker && (
+              <>
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    locale="ja-JP"
+                    themeVariant="light"
+                    onChange={(_, date) => {
+                      if (Platform.OS === 'android') setShowStartDatePicker(false)
+                      if (date) setStartDate(date)
+                    }}
+                  />
+                </View>
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    onPress={() => setShowStartDatePicker(false)}
+                    style={{ backgroundColor: C.blue, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 8 }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>完了</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity
+              onPress={confirmCreatePlan}
+              disabled={creating}
+              style={{ backgroundColor: creating ? C.muted : C.red, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 4 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{creating ? '作成中...' : 'この内容で作り直す'}</Text>
+            </TouchableOpacity>
+            {createError !== '' && <Text style={{ fontSize: 13, color: C.red, marginTop: 8 }}>{createError}</Text>}
+          </View>
+        )}
 
         {editingRest && currentWeek && pendingRestDays && (
           <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border, borderStyle: 'dashed' }}>
@@ -1006,7 +1223,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, eventName, eventDate }: { ftp: numb
               })}
             </View>
             <TouchableOpacity
-              onPress={() => saveRestDayEdits(currentWeek)}
+              onPress={() => confirmSaveRestDayEdits(currentWeek)}
               disabled={savingRestDays}
               style={{ backgroundColor: savingRestDays ? C.muted : C.blue, borderRadius: 10, padding: 10, alignItems: 'center', marginTop: 12 }}
             >
