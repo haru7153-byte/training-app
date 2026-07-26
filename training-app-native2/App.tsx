@@ -67,6 +67,20 @@ const TABS = [
 
 const PHASE_COLORS: Record<Phase, string> = { Base: C.green, Build: C.orange, Peak: C.red, Taper: C.cyan }
 
+/**
+ * 日付のない（進行中の）目標のプランは Base/Build の2フェーズを繰り返すだけなので、
+ * PHASE_COLORS だけだとほとんどの週が同じ色（オレンジ）になってしまう。
+ * その週のTSSが基準値に対してどれくらいの強度かで色分けする。
+ */
+function weekColor(week: PlanWeekRow, plan: TrainingPlanRow): string {
+  if (plan.goal_type !== 'ongoing') return PHASE_COLORS[week.phase]
+  if (week.is_recovery_week) return C.cyan
+  const ratio = plan.weekly_target_tss > 0 ? week.target_tss / plan.weekly_target_tss : 1
+  if (ratio < 0.9) return C.blue
+  if (ratio < 1.0) return C.green
+  return C.orange
+}
+
 const REVIEW_LABELS: Record<ReviewStatus, { label: string; color: string }> = {
   pending:      { label: '未評価',           color: C.muted },
   completed:    { label: '✅ 達成',           color: C.green },
@@ -855,7 +869,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
   }
 
   const currentWeek = activePlan ? findCurrentWeek(activePlan.weeks) : null
-  const phaseColor = currentWeek ? PHASE_COLORS[currentWeek.phase] : C.blue
+  const phaseColor = currentWeek && activePlan ? weekColor(currentWeek, activePlan.plan) : C.blue
 
   // 週を連続するフェーズごとにまとめて、今どの区間の何週目にいるかを表示するためのもの
   const phaseSegments: { phase: Phase; weeks: PlanWeekRow[] }[] = []
@@ -1171,21 +1185,24 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
         )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
-          {activePlan.weeks.map(w => (
-            <View
-              key={w.id}
-              style={{
-                width: 30, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: currentWeek?.id === w.id ? PHASE_COLORS[w.phase] : PHASE_COLORS[w.phase] + '25',
-                borderWidth: w.is_recovery_week || w.has_ftp_test ? 1.5 : 0,
-                borderColor: w.has_ftp_test ? C.orange : C.cyan,
-              }}
-            >
-              <Text style={{ fontSize: 10, fontWeight: '800', color: currentWeek?.id === w.id ? '#fff' : PHASE_COLORS[w.phase] }}>
-                {w.week_number}
-              </Text>
-            </View>
-          ))}
+          {activePlan.weeks.map(w => {
+            const wColor = weekColor(w, activePlan.plan)
+            return (
+              <View
+                key={w.id}
+                style={{
+                  width: 30, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: currentWeek?.id === w.id ? wColor : wColor + '25',
+                  borderWidth: w.is_recovery_week || w.has_ftp_test ? 1.5 : 0,
+                  borderColor: w.has_ftp_test ? C.orange : C.cyan,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: '800', color: currentWeek?.id === w.id ? '#fff' : wColor }}>
+                  {w.week_number}
+                </Text>
+              </View>
+            )
+          })}
         </ScrollView>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 12 }}>
