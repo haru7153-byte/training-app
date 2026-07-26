@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
-import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg'
+import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon, Text as SvgText } from 'react-native-svg'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as WebBrowser from 'expo-web-browser'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -332,6 +332,7 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
           `${W},${H}`, `0,${H}`
         ].join(' ')
         const goalY = ((maxW - goalWeight) / range) * (H - 10) + 5
+        const goalLabelBelow = goalY < 15
 
         return (
           <View style={styles.card}>
@@ -346,6 +347,16 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
               <Polygon points={areaPoints} fill="url(#wgrad)" />
               <Polyline points={polyPoints} fill="none" stroke={C.cyan} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
               <Line x1={0} y1={goalY} x2={W} y2={goalY} stroke={C.green} strokeWidth={1} strokeDasharray="4,3" />
+              <SvgText
+                x={W}
+                y={goalLabelBelow ? goalY + 11 : goalY - 4}
+                fill={C.green}
+                fontSize={9}
+                fontWeight="bold"
+                textAnchor="end"
+              >
+                {`目標 ${goalWeight}kg`}
+              </SvgText>
               {pts.map((p, i) => (
                 <Circle key={i} cx={p.x} cy={p.y} r={4} fill={C.bg} stroke={C.cyan} strokeWidth={2} />
               ))}
