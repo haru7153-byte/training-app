@@ -1827,7 +1827,7 @@ type TssTier = 'light' | 'standard' | 'hard'
 
 const ONGOING_GOAL_PRESETS: { label: string; icon: string; focus: TrainingFocus; tssTier: TssTier }[] = [
   { label: '体力づくり', icon: '🚴', focus: 'balanced', tssTier: 'light' },
-  { label: '坂をもっと速く登りたい', icon: '⛰️', focus: 'climbing', tssTier: 'standard' },
+  { label: '坂をもっと楽に登れるようになりたい', icon: '⛰️', focus: 'climbing', tssTier: 'standard' },
   { label: 'クリテリウムで勝ちたい', icon: '🏁', focus: 'criterium', tssTier: 'standard' },
 ]
 
