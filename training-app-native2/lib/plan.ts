@@ -506,6 +506,25 @@ export async function updatePlanDayReview(
   await supabase.from('plan_day').update(fields).eq('id', dayId)
 }
 
+/** ワークアウトが予定されていた日を、休養日として上書きする（未実施の圧を感じさせないため）。 */
+export async function markDayAsRest(dayId: string): Promise<void> {
+  await supabase.from('plan_day').update({
+    type: 'rest',
+    platform: null,
+    name: null,
+    duration: null,
+    planned_tss: null,
+    zone: null,
+    description: null,
+    strava_activity_id: null,
+    actual_tss: null,
+    actual_duration: null,
+    achievement_pct: null,
+    review_status: 'rest_ok',
+    review_comment: null,
+  }).eq('id', dayId)
+}
+
 export interface DayReviewResult {
   reviewStatus: ReviewStatus
   actualTss: number | null

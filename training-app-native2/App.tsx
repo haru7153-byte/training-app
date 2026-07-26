@@ -35,6 +35,7 @@ import {
   getPlanDays,
   saveGeneratedWeekDays,
   updatePlanDayReview,
+  markDayAsRest,
   updateWeekRestDays,
   classifyDayReview,
   parseDateOnly,
@@ -85,7 +86,7 @@ const REVIEW_LABELS: Record<ReviewStatus, { label: string; color: string }> = {
   pending:      { label: '未評価',           color: C.muted },
   completed:    { label: '✅ 達成',           color: C.green },
   partial:      { label: '🟡 部分達成',       color: C.orange },
-  not_done:     { label: '❌ 未実施',         color: C.red },
+  not_done:     { label: '😌 レスト日扱い',    color: C.muted },
   rest_ok:      { label: '😴 休養OK',         color: C.muted },
   rest_skipped: { label: '⚠️ レスト日に運動', color: C.orange },
 }
@@ -553,6 +554,7 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
 
   const [reviewMap, setReviewMap] = useState<Record<string, DayReviewResult>>({})
   const [reviewingDayId, setReviewingDayId] = useState<string | null>(null)
+  const [markingRestId, setMarkingRestId] = useState<string | null>(null)
 
   const [editingRest, setEditingRest] = useState(false)
   const [pendingRestDays, setPendingRestDays] = useState<Set<number> | null>(null)
@@ -868,6 +870,46 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
     setReviewingDayId(null)
   }
 
+  function markAsRest(day: PlanDayRow) {
+    Alert.alert(
+      '今日はレスト日にする',
+      '予定していたワークアウトは消え、休養日として記録されます。無理に運動しなくて大丈夫です。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: 'レスト日にする',
+          onPress: async () => {
+            setMarkingRestId(day.id)
+            await markDayAsRest(day.id)
+            setCurrentWeekDays(prev =>
+              prev.map(d =>
+                d.id === day.id
+                  ? {
+                      ...d,
+                      type: 'rest',
+                      platform: null,
+                      name: null,
+                      duration: null,
+                      planned_tss: null,
+                      zone: null,
+                      description: null,
+                      review_status: 'rest_ok',
+                      review_comment: null,
+                    }
+                  : d
+              )
+            )
+            setReviewMap(prev => ({
+              ...prev,
+              [day.id]: { reviewStatus: 'rest_ok', actualTss: null, actualDuration: null, achievementPct: null, stravaActivityId: null },
+            }))
+            setMarkingRestId(null)
+          },
+        },
+      ]
+    )
+  }
+
   const currentWeek = activePlan ? findCurrentWeek(activePlan.weeks) : null
   const phaseColor = currentWeek && activePlan ? weekColor(currentWeek, activePlan.plan) : C.blue
 
@@ -1044,15 +1086,26 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
               </View>
             </View>
           ) : todayScore == null ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.muted + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 28 }}>⏳</Text>
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.muted + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 28 }}>⏳</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{todayDay.name || 'ワークアウト予定'}</Text>
+                  <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>実施してStravaに同期すると、ここに採点が表示されます</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: C.text }}>{todayDay.name || 'ワークアウト予定'}</Text>
-                <Text style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>実施してStravaに同期すると、ここに採点が表示されます</Text>
-              </View>
-            </View>
+              <TouchableOpacity
+                onPress={() => markAsRest(todayDay)}
+                disabled={markingRestId === todayDay.id}
+                style={{ marginTop: 12, backgroundColor: C.muted + '18', borderRadius: 10, padding: 10, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: C.sub }}>
+                  {markingRestId === todayDay.id ? '変更中...' : '😴 今日はレスト日にする'}
+                </Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
               <View style={{ width: 72, height: 72 }}>
