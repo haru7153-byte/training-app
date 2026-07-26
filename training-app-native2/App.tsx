@@ -1107,21 +1107,21 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
       )}
 
       {/* ── プラン概要 ── */}
-      <View style={[styles.card, { backgroundColor: phaseColor + '12', borderColor: phaseColor + '40' }]}>
+      <View style={styles.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 12, color: phaseColor, fontWeight: '700', letterSpacing: 1 }}>🏁 長期プラン</Text>
+            <Text style={{ fontSize: 12, color: C.purple, fontWeight: '700', letterSpacing: 1 }}>🏁 長期プラン</Text>
             <Text style={{ fontSize: 17, fontWeight: '800', color: C.text, marginTop: 4 }}>{activePlan.plan.event_name}</Text>
           </View>
-          <View style={{ alignItems: 'center', backgroundColor: phaseColor + '22', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+          <View style={{ alignItems: 'center', backgroundColor: C.purple + '18', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
             {activePlan.plan.goal_type === 'race' && activeDaysToRace != null ? (
               <>
-                <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{activeDaysToRace}</Text>
+                <Text style={{ fontSize: 26, fontWeight: '900', color: C.purple }}>{activeDaysToRace}</Text>
                 <Text style={{ fontSize: 10, color: C.sub }}>日後</Text>
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 26, fontWeight: '900', color: phaseColor }}>{activePlan.weeks.length}</Text>
+                <Text style={{ fontSize: 26, fontWeight: '900', color: C.purple }}>{activePlan.weeks.length}</Text>
                 <Text style={{ fontSize: 10, color: C.sub }}>週目まで生成済</Text>
               </>
             )}
