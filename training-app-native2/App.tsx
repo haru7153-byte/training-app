@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, Switch } from 'react-native'
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
-import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon, Text as SvgText } from 'react-native-svg'
+import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon, Text as SvgText, G } from 'react-native-svg'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as WebBrowser from 'expo-web-browser'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -317,22 +317,26 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
       </View>
       {/* グラフ */}
       {log.length >= 2 && (() => {
-        const minW = Math.min(...log.map(d => d.w)) - 1
-        const maxW = Math.max(...log.map(d => d.w)) + 1
+        const minW = Math.min(...log.map(d => d.w), goalWeight) - 1
+        const maxW = Math.max(...log.map(d => d.w), goalWeight) + 1
         const range = maxW - minW
         const W = 320
-        const H = 100
+        const H = 110
+        const padLeft = 30
+        const plotW = W - padLeft
+        const yForW = (w: number) => ((maxW - w) / range) * (H - 10) + 5
         const pts = log.map((d, i) => ({
-          x: (i / (log.length - 1)) * W,
-          y: ((maxW - d.w) / range) * (H - 10) + 5,
+          x: padLeft + (i / (log.length - 1)) * plotW,
+          y: yForW(d.w),
         }))
         const polyPoints = pts.map(p => `${p.x},${p.y}`).join(' ')
         const areaPoints = [
           ...pts.map(p => `${p.x},${p.y}`),
-          `${W},${H}`, `0,${H}`
+          `${padLeft + plotW},${H}`, `${padLeft},${H}`
         ].join(' ')
-        const goalY = ((maxW - goalWeight) / range) * (H - 10) + 5
+        const goalY = yForW(goalWeight)
         const goalLabelBelow = goalY < 15
+        const yTicks = [maxW, minW + range / 2, minW]
 
         return (
           <View style={styles.card}>
@@ -344,11 +348,22 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
                   <Stop offset="100%" stopColor={C.cyan} stopOpacity={0} />
                 </LinearGradient>
               </Defs>
+              {yTicks.map((v, i) => {
+                const y = yForW(v)
+                return (
+                  <G key={i}>
+                    <Line x1={padLeft} y1={y} x2={padLeft + plotW} y2={y} stroke={C.border} strokeWidth={1} />
+                    <SvgText x={padLeft - 4} y={y + 3} fill={C.muted} fontSize={8} textAnchor="end">
+                      {v.toFixed(1)}
+                    </SvgText>
+                  </G>
+                )
+              })}
               <Polygon points={areaPoints} fill="url(#wgrad)" />
               <Polyline points={polyPoints} fill="none" stroke={C.cyan} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              <Line x1={0} y1={goalY} x2={W} y2={goalY} stroke={C.green} strokeWidth={1} strokeDasharray="4,3" />
+              <Line x1={padLeft} y1={goalY} x2={padLeft + plotW} y2={goalY} stroke={C.green} strokeWidth={1} strokeDasharray="4,3" />
               <SvgText
-                x={W}
+                x={padLeft + plotW}
                 y={goalLabelBelow ? goalY + 11 : goalY - 4}
                 fill={C.green}
                 fontSize={9}
@@ -361,7 +376,7 @@ function WeightScreen({ goalWeight }: { goalWeight: number }) {
                 <Circle key={i} cx={p.x} cy={p.y} r={4} fill={C.bg} stroke={C.cyan} strokeWidth={2} />
               ))}
             </Svg>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginLeft: `${(padLeft / W) * 100}%` }}>
               {log.map((d, i) => (
                 <Text key={i} style={{ fontSize: 9, color: C.muted }}>{d.d}</Text>
               ))}
