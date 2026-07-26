@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "RIDEVERSE",
+    "slug": "rideverse",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rideverse.app"
+    },
+    "android": {
+      "package": "com.rideverse.app"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
