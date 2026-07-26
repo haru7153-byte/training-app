@@ -7,6 +7,7 @@ export type Phase = 'Base' | 'Build' | 'Peak' | 'Taper'
 export type DayType = 'workout' | 'rest' | 'ftp_test'
 export type ReviewStatus = 'pending' | 'completed' | 'partial' | 'not_done' | 'rest_ok' | 'rest_skipped'
 export type GoalType = 'race' | 'ongoing'
+export type TrainingFocus = 'balanced' | 'climbing' | 'criterium'
 
 /** How many weeks to generate at a time for a date-less "ongoing" goal. */
 export const ONGOING_BLOCK_SIZE = 8
