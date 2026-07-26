@@ -26,6 +26,7 @@ import {
   getPlanDays,
   saveGeneratedWeekDays,
   updatePlanDayReview,
+  updatePlanDayContent,
   markDayAsRest,
   updateWeekRestDays,
   classifyDayReview,
@@ -33,6 +34,21 @@ import {
   formatDateOnly,
 } from '../lib/plan'
 import { C, styles, PHASE_COLORS, ZONE_COLORS, REVIEW_LABELS, weekColor } from '../lib/theme'
+
+interface DayAnalysisResult {
+  status: string
+  analysis: string
+  recommendation: string
+  tomorrow: {
+    type: DayType
+    name: string | null
+    duration: number | null
+    tss: number | null
+    zone: string | null
+    description: string | null
+  } | null
+  tomorrowDayId: string | null
+}
 
 export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenRecreateHandled }: {
   ftp: number
@@ -62,6 +78,11 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
   const [reviewMap, setReviewMap] = useState<Record<string, DayReviewResult>>({})
   const [reviewingDayId, setReviewingDayId] = useState<string | null>(null)
   const [markingRestId, setMarkingRestId] = useState<string | null>(null)
+
+  const [dayAnalysis, setDayAnalysis] = useState<Record<string, DayAnalysisResult>>({})
+  const [analyzingDayId, setAnalyzingDayId] = useState<string | null>(null)
+  const [applyingTomorrowId, setApplyingTomorrowId] = useState<string | null>(null)
+  const [appliedTomorrowIds, setAppliedTomorrowIds] = useState<Set<string>>(new Set())
 
   const [editingRest, setEditingRest] = useState(false)
   const [pendingRestDays, setPendingRestDays] = useState<Set<number> | null>(null)
@@ -391,6 +412,115 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
     setReviewingDayId(null)
   }
 
+  async function analyzeDay(day: PlanDayRow) {
+    setAnalyzingDayId(day.id)
+    try {
+      const result = reviewMap[day.id]
+
+      const tomorrowDate = parseDateOnly(day.date)
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+      const tomorrowStr = formatDateOnly(tomorrowDate)
+      const tomorrowDay = currentWeekDays.find(d => d.date === tomorrowStr) || null
+
+      const recentHistory = currentWeekDays
+        .filter(d => parseDateOnly(d.date) <= today)
+        .map(d => `${DAYS_JP[d.day_of_week]}:${REVIEW_LABELS[reviewMap[d.id]?.reviewStatus || d.review_status].label}`)
+
+      const r = await fetch(`${VERCEL_BASE}/api/analyze-day`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ftp,
+          goalFtp,
+          platform: activePlan?.plan.platform || 'Zwift',
+          planned: {
+            type: day.type,
+            name: day.name,
+            duration: day.duration,
+            tss: day.planned_tss,
+            zone: day.zone,
+            description: day.description,
+          },
+          actual:
+            result && result.actualTss !== null
+              ? {
+                  duration: result.actualDuration,
+                  tss: result.actualTss,
+                  avgWatts: result.avgWatts,
+                  weightedAvgWatts: result.weightedAvgWatts,
+                  avgHeartrate: result.avgHeartrate,
+                  maxHeartrate: result.maxHeartrate,
+                  avgCadence: result.avgCadence,
+                }
+              : null,
+          reviewStatus: result?.reviewStatus || day.review_status,
+          recentHistory,
+          tomorrowDayLabel: tomorrowDay ? DAYS_JP[tomorrowDay.day_of_week] : null,
+          tomorrowIsRestDay: tomorrowDay ? tomorrowDay.type === 'rest' : null,
+        }),
+      })
+      const data = await r.json()
+      if (data.status) {
+        const tomorrow = data.tomorrow
+          ? {
+              ...data.tomorrow,
+              type: data.tomorrow.type === 'ftp_test' ? 'ftp_test' : data.tomorrow.type === 'rest' ? 'rest' : 'workout',
+            }
+          : null
+        setDayAnalysis(prev => ({
+          ...prev,
+          [day.id]: { ...data, tomorrow, tomorrowDayId: tomorrowDay?.id ?? null },
+        }))
+      }
+    } catch {}
+    setAnalyzingDayId(null)
+  }
+
+  function applyTomorrowSuggestion(todayDayId: string) {
+    const result = dayAnalysis[todayDayId]
+    if (!result?.tomorrow || !result.tomorrowDayId) return
+    const tomorrowDayId = result.tomorrowDayId
+    const suggestion = result.tomorrow
+    Alert.alert(
+      '明日のプランを書き換える',
+      '提案された内容で明日の予定を上書きします。よろしいですか？',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '書き換える',
+          onPress: async () => {
+            setApplyingTomorrowId(todayDayId)
+            await updatePlanDayContent(tomorrowDayId, {
+              type: suggestion.type,
+              name: suggestion.name,
+              duration: suggestion.duration,
+              plannedTss: suggestion.tss,
+              zone: suggestion.zone,
+              description: suggestion.description,
+            })
+            setCurrentWeekDays(prev =>
+              prev.map(d =>
+                d.id === tomorrowDayId
+                  ? {
+                      ...d,
+                      type: suggestion.type,
+                      name: suggestion.name,
+                      duration: suggestion.duration,
+                      planned_tss: suggestion.tss,
+                      zone: suggestion.zone,
+                      description: suggestion.description,
+                    }
+                  : d
+              )
+            )
+            setAppliedTomorrowIds(prev => new Set(prev).add(todayDayId))
+            setApplyingTomorrowId(null)
+          },
+        },
+      ]
+    )
+  }
+
   function markAsRest(day: PlanDayRow) {
     Alert.alert(
       '今日はレスト日にする',
@@ -422,7 +552,10 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
             )
             setReviewMap(prev => ({
               ...prev,
-              [day.id]: { reviewStatus: 'rest_ok', actualTss: null, actualDuration: null, achievementPct: null, stravaActivityId: null },
+              [day.id]: {
+                reviewStatus: 'rest_ok', actualTss: null, actualDuration: null, achievementPct: null, stravaActivityId: null,
+                avgWatts: null, weightedAvgWatts: null, avgHeartrate: null, maxHeartrate: null, avgCadence: null,
+              },
             }))
             setMarkingRestId(null)
           },
@@ -660,6 +793,73 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
                 {reviewingDayId === todayDay.id ? '⏳ 生成中...' : '🤖 AIレビューを見る'}
               </Text>
             </TouchableOpacity>
+          )}
+
+          {todayScore != null && (
+            <View style={{ marginTop: 10 }}>
+              {!dayAnalysis[todayDay.id] ? (
+                <TouchableOpacity
+                  onPress={() => analyzeDay(todayDay)}
+                  disabled={analyzingDayId === todayDay.id}
+                  style={{ backgroundColor: C.purple + '18', borderRadius: 10, padding: 10, alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: analyzingDayId === todayDay.id ? C.muted : C.purple }}>
+                    {analyzingDayId === todayDay.id ? '⏳ 分析中...' : '🔍 パワー・心拍・ケイデンスを詳しく分析する'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  <View>
+                    <Text style={{ fontSize: 10, color: C.sub, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 }}>今の状態</Text>
+                    <Text style={{ fontSize: 13, color: C.text, lineHeight: 18 }}>{dayAnalysis[todayDay.id].status}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, color: C.sub, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 }}>詳しい分析</Text>
+                    <Text style={{ fontSize: 13, color: C.text, lineHeight: 18 }}>{dayAnalysis[todayDay.id].analysis}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, color: C.sub, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 }}>次にすべきこと</Text>
+                    <Text style={{ fontSize: 13, color: C.text, lineHeight: 18 }}>{dayAnalysis[todayDay.id].recommendation}</Text>
+                  </View>
+
+                  {dayAnalysis[todayDay.id].tomorrow && (
+                    <View style={{ backgroundColor: C.blue + '14', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.blue + '30' }}>
+                      <Text style={{ fontSize: 10, color: C.blue, fontWeight: '700', letterSpacing: 0.5 }}>💡 明日の提案</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: C.text, marginTop: 4 }}>
+                        {dayAnalysis[todayDay.id].tomorrow!.type === 'rest' ? '😴 休養日' : dayAnalysis[todayDay.id].tomorrow!.name}
+                      </Text>
+                      {dayAnalysis[todayDay.id].tomorrow!.type !== 'rest' && (
+                        <Text style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>
+                          {dayAnalysis[todayDay.id].tomorrow!.duration}分・TSS{dayAnalysis[todayDay.id].tomorrow!.tss}・{dayAnalysis[todayDay.id].tomorrow!.zone}
+                        </Text>
+                      )}
+                      {dayAnalysis[todayDay.id].tomorrow!.description && (
+                        <Text style={{ fontSize: 12, color: C.sub, marginTop: 4, lineHeight: 16 }}>
+                          {dayAnalysis[todayDay.id].tomorrow!.description}
+                        </Text>
+                      )}
+                      {appliedTomorrowIds.has(todayDay.id) ? (
+                        <Text style={{ fontSize: 12, color: C.green, fontWeight: '700', marginTop: 8 }}>✅ プランに反映済み</Text>
+                      ) : dayAnalysis[todayDay.id].tomorrowDayId ? (
+                        <TouchableOpacity
+                          onPress={() => applyTomorrowSuggestion(todayDay.id)}
+                          disabled={applyingTomorrowId === todayDay.id}
+                          style={{ marginTop: 8, backgroundColor: C.blue, borderRadius: 8, padding: 9, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
+                            {applyingTomorrowId === todayDay.id ? '反映中...' : 'この内容で明日のプランを書き換える'}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 15 }}>
+                          来週分はまだ生成されていないため、自動では反映できません
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
           )}
 
           {elapsedDaysThisWeek.length > 0 && (

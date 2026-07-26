@@ -531,12 +531,41 @@ export async function markDayAsRest(dayId: string): Promise<void> {
   }).eq('id', dayId)
 }
 
+/** 提案されたワークアウト内容で、既存のplan_day行を書き換える（翌日の提案の反映など）。 */
+export async function updatePlanDayContent(
+  dayId: string,
+  content: {
+    type: DayType
+    platform?: string | null
+    name?: string | null
+    duration?: number | null
+    plannedTss?: number | null
+    zone?: string | null
+    description?: string | null
+  }
+): Promise<void> {
+  await supabase.from('plan_day').update({
+    type: content.type,
+    platform: content.platform ?? null,
+    name: content.name ?? null,
+    duration: content.duration ?? null,
+    planned_tss: content.plannedTss ?? null,
+    zone: content.zone ?? null,
+    description: content.description ?? null,
+  }).eq('id', dayId)
+}
+
 export interface DayReviewResult {
   reviewStatus: ReviewStatus
   actualTss: number | null
   actualDuration: number | null
   achievementPct: number | null
   stravaActivityId: number | null
+  avgWatts: number | null
+  weightedAvgWatts: number | null
+  avgHeartrate: number | null
+  maxHeartrate: number | null
+  avgCadence: number | null
 }
 
 /** Rule-based planned-vs-actual comparison for one day, given the Strava activities on that date. */
@@ -548,12 +577,24 @@ export function classifyDayReview(day: PlanDayRow, activities: StravaActivity[],
       actualDuration: null,
       achievementPct: null,
       stravaActivityId: null,
+      avgWatts: null,
+      weightedAvgWatts: null,
+      avgHeartrate: null,
+      maxHeartrate: null,
+      avgCadence: null,
     }
   }
 
   const totalTss = activities.reduce((s, a) => s + computeActivityTss(a, ftp), 0)
   const totalDuration = Math.round(activities.reduce((s, a) => s + a.moving_time, 0) / 60)
   const representative = activities.reduce((best, a) => (computeActivityTss(a, ftp) > computeActivityTss(best, ftp) ? a : best))
+  const repMetrics = {
+    avgWatts: representative.average_watts ?? null,
+    weightedAvgWatts: representative.weighted_average_watts ?? null,
+    avgHeartrate: representative.average_heartrate ? Math.round(representative.average_heartrate) : null,
+    maxHeartrate: representative.max_heartrate ? Math.round(representative.max_heartrate) : null,
+    avgCadence: representative.average_cadence ? Math.round(representative.average_cadence) : null,
+  }
 
   if (day.type === 'rest') {
     return {
@@ -562,6 +603,7 @@ export function classifyDayReview(day: PlanDayRow, activities: StravaActivity[],
       actualDuration: totalDuration,
       achievementPct: null,
       stravaActivityId: representative.id,
+      ...repMetrics,
     }
   }
 
@@ -575,5 +617,6 @@ export function classifyDayReview(day: PlanDayRow, activities: StravaActivity[],
     actualDuration: totalDuration,
     achievementPct: pct,
     stravaActivityId: representative.id,
+    ...repMetrics,
   }
 }

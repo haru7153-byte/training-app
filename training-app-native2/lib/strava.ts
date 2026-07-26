@@ -76,6 +76,9 @@ export interface StravaActivity {
   average_speed?: number
   average_watts?: number
   weighted_average_watts?: number
+  average_heartrate?: number
+  max_heartrate?: number
+  average_cadence?: number
   suffer_score?: number
   start_date_local: string
 }
