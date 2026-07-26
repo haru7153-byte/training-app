@@ -21,6 +21,7 @@ import {
   DayReviewResult,
   getActivePlan,
   createTrainingPlan,
+  updatePlanGoalName,
   extendOngoingPlan,
   getPlanDays,
   saveGeneratedWeekDays,
@@ -85,12 +86,26 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
     setStartDate(parseDateOnly(activePlan.plan.start_date))
   }, [activePlan?.plan.id])
 
-  // 目標タブで設定を保存すると、この画面を開いた時に「作り直す」フォームが自動で開く（即時反映）
+  // 目標タブで設定を保存すると、この画面を開いた時に「名前だけ変更」か「作り直す」かを確認する
   useEffect(() => {
-    if (autoOpenRecreate && activePlan) {
-      setShowRecreateForm(true)
-      onAutoOpenRecreateHandled?.()
-    }
+    if (!autoOpenRecreate || !activePlan) return
+    onAutoOpenRecreateHandled?.()
+    if (activePlan.plan.event_name === eventName) return
+    Alert.alert(
+      '目標が変更されました',
+      `プランの目標名を新しい「${eventName}」に更新します。トレーニング内容も新しい目標に合わせて作り直しますか？`,
+      [
+        { text: '後で', style: 'cancel' },
+        {
+          text: '名前だけ変更',
+          onPress: async () => {
+            await updatePlanGoalName(activePlan.plan.id, eventName)
+            setActivePlan(prev => (prev ? { ...prev, plan: { ...prev.plan, event_name: eventName } } : prev))
+          },
+        },
+        { text: 'プランを作り直す', style: 'destructive', onPress: () => setShowRecreateForm(true) },
+      ]
+    )
   }, [autoOpenRecreate, activePlan])
 
   function findCurrentWeek(weeks: PlanWeekRow[]): PlanWeekRow | null {

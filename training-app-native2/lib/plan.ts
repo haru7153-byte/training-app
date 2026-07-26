@@ -315,6 +315,11 @@ export async function getActivePlan(): Promise<{ plan: TrainingPlanRow; weeks: P
   return { plan, weeks: weeks || [] }
 }
 
+/** トレーニング内容はそのままに、プランの目標名（表示ラベル）だけを更新する。 */
+export async function updatePlanGoalName(planId: string, eventName: string): Promise<void> {
+  await supabase.from('training_plan').update({ event_name: eventName }).eq('id', planId)
+}
+
 export async function createTrainingPlan(input: {
   eventName: string
   eventDate: Date | null
