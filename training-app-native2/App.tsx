@@ -88,7 +88,7 @@ const REVIEW_LABELS: Record<ReviewStatus, { label: string; color: string }> = {
   partial:      { label: '🟡 部分達成',       color: C.orange },
   not_done:     { label: '😌 レスト日扱い',    color: C.muted },
   rest_ok:      { label: '😴 休養OK',         color: C.muted },
-  rest_skipped: { label: '⚠️ レスト日に運動', color: C.orange },
+  rest_skipped: { label: '🚴 レスト日に運動あり', color: C.blue },
 }
 
 const ZONE_COLORS: Record<string, string> = {
@@ -927,15 +927,14 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
   const todayDay = currentWeekDays.find(d => d.date === todayStr) || null
   const todayReview = todayDay ? reviewMap[todayDay.id] : undefined
   const todayScore = todayReview?.achievementPct != null ? Math.min(Math.round(todayReview.achievementPct), 100) : null
-  const todayScoreColor = todayScore == null ? C.sub : todayScore >= 85 ? C.green : todayScore >= 50 ? C.orange : C.red
+  const todayScoreColor = todayScore == null ? C.sub : todayScore >= 85 ? C.green : C.orange
 
-  // 直近の連続達成日数（今週分のみ。ワークアウト達成 or 休養きちんと取れた日が対象）
-  let streakDays = 0
-  for (const d of [...currentWeekDays].filter(d => parseDateOnly(d.date) <= today).reverse()) {
+  // 今週、ここまでで「取り組めた」日数（1日サボると0に戻る連続記録ではなく、積み上げで見せる）
+  const elapsedDaysThisWeek = currentWeekDays.filter(d => parseDateOnly(d.date) <= today)
+  const onTrackDaysThisWeek = elapsedDaysThisWeek.filter(d => {
     const status = reviewMap[d.id]?.reviewStatus || d.review_status
-    if (status === 'completed' || status === 'rest_ok') streakDays++
-    else break
-  }
+    return status === 'completed' || status === 'partial' || status === 'rest_ok'
+  }).length
   const weekWorkoutScores = currentWeekDays
     .map(d => reviewMap[d.id]?.achievementPct)
     .filter((v): v is number => v != null)
@@ -1142,11 +1141,13 @@ function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecreate, onAutoOpenR
             </TouchableOpacity>
           )}
 
-          {streakDays > 0 && (
+          {elapsedDaysThisWeek.length > 0 && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
               <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>🔥 {streakDays}日</Text>
-                <Text style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>連続で計画通り</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: todayDay.type === 'rest' ? C.cyan : todayScoreColor }}>
+                  {onTrackDaysThisWeek}/{elapsedDaysThisWeek.length}日
+                </Text>
+                <Text style={{ fontSize: 10, color: C.sub, marginTop: 1 }}>今週取り組めた日</Text>
               </View>
               {weekAvgScore != null && (
                 <View style={{ flex: 1, backgroundColor: (todayDay.type === 'rest' ? C.cyan : todayScoreColor) + '18', borderRadius: 10, padding: 8, alignItems: 'center' }}>
