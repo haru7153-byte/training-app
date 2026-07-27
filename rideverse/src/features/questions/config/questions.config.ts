@@ -3,17 +3,19 @@ import { QuestionDefinition } from '../types'
 // Add, remove, or reorder entries here to change the interview — QuestionsScreen
 // renders purely from this array, so question count/content never needs a code
 // change. Velia Generation Reference v1.0 calls for 8〜10 questions; these 10
-// match the reference's example list.
+// match the reference's example list. Option ids here are looked up by
+// api/rideverse/_lib/answerThemeMap.js — keep the two in sync when editing.
 export const QUESTIONS: QuestionDefinition[] = [
   {
     id: 'ridePurpose',
     prompt: 'ライドの目的は？',
     type: 'single-choice',
     options: [
-      { id: 'fitness', label: '健康・トレーニング' },
-      { id: 'stress_relief', label: 'ストレス発散' },
-      { id: 'challenge', label: '記録への挑戦' },
-      { id: 'scenery', label: '景色を楽しむ' },
+      { id: 'hill_climb', label: 'ヒルクライム' },
+      { id: 'cafe_ride', label: 'カフェライド' },
+      { id: 'race', label: 'レース' },
+      { id: 'commute', label: '通勤' },
+      { id: 'long_ride', label: 'ロングライド' },
     ],
   },
   {

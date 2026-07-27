@@ -15,9 +15,9 @@ interface UseVeriaGenerationResult {
 }
 
 /**
- * Orchestrates the two independent AI services: STEP2 (text profile) and STEP3
- * (image). They are separate models/prompts/endpoints, but per the v1.0 spec
- * STEP3 takes STEP2's species/personality/keywords as input, so this hook runs
+ * Orchestrates the two independent AI services: STEP2 (theme/species/personality/
+ * appearance/voice) and STEP3 (image). They are separate models/prompts/endpoints,
+ * but STEP3 takes STEP2's theme/species/personality as input, so this hook runs
  * them in sequence rather than in parallel.
  */
 export function useVeriaGeneration(bikeInfo: BikeInfo | null, answers: QuestionAnswers): UseVeriaGenerationResult {
@@ -34,9 +34,9 @@ export function useVeriaGeneration(bikeInfo: BikeInfo | null, answers: QuestionA
       const profile = await generateVeriaProfile(bikeInfo, answers)
       const { imageUrl, imagePrompt } = await generateVeriaImage({
         bikeInfo,
+        theme: profile.theme,
         species: profile.species,
         personality: profile.personality,
-        keywords: profile.keywords,
       })
       setContent({ ...profile, imageUrl, imagePrompt })
       setStatus('success')

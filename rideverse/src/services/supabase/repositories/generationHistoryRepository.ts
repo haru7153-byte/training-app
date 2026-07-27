@@ -19,7 +19,7 @@ export async function logGeneration({ userId, veriaId, bikeInfo, answers, conten
     veria_id: veriaId,
     bike_info: bikeInfo,
     answers,
-    name_candidates: content.nameCandidates,
+    name_candidates: content.metadata.nameCandidates,
     chosen_name: chosenName,
     raw_ai_profile: content,
   })

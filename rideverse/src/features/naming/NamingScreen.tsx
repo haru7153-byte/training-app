@@ -58,7 +58,7 @@ export function NamingScreen({ navigation }: Props) {
         <View style={{ gap: spacing.xs }}>
           <Text style={typography.caption}>AIからの名前候補（参考）</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
-            {generatedContent.nameCandidates.map((candidate) => (
+            {generatedContent.metadata.nameCandidates.map((candidate) => (
               <NameSuggestionChip key={candidate} label={candidate} onPress={() => setName(candidate)} />
             ))}
           </View>

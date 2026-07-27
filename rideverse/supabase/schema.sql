@@ -1,5 +1,5 @@
 -- RIDEVERSE MVP schema: the minimum needed for "generate one unique veria".
--- Aligned with Velia Generation Reference v1.0.
+-- Aligned with Velia Generation Reference v1.1 (Theme-first generation order).
 -- Run against a Supabase project (SQL editor or `supabase db push`).
 
 create extension if not exists "pgcrypto";
@@ -14,14 +14,14 @@ create table if not exists public.velias (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
   name text not null,
-  species text not null,
-  appearance text not null,
-  personality text not null,
-  keywords jsonb not null default '[]'::jsonb,
-  voice_tone text not null,
-  greeting text not null,
-  favorite_ride text not null,
-  favorite_season text not null,
+  -- theme/personality/appearance/voice/metadata are jsonb so their shape can
+  -- grow (e.g. seasonal/story fields on theme) without a migration each time.
+  theme jsonb not null,
+  species_name text not null,
+  personality jsonb not null,
+  appearance jsonb not null,
+  voice jsonb not null,
+  metadata jsonb not null default '{}'::jsonb,
   image_url text not null,
   image_prompt text not null,
   bike_type text not null,

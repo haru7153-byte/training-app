@@ -23,15 +23,18 @@ export function ProfileScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ gap: spacing.lg, alignItems: 'center' }}>
         <Image source={{ uri: veria.imageUrl }} style={styles.image} resizeMode="cover" />
         <Text style={typography.display}>{veria.name}</Text>
-        <Text style={[typography.body, { color: colors.accent, textAlign: 'center' }]}>{veria.greeting}</Text>
+        <Text style={[typography.body, { color: colors.accent, textAlign: 'center' }]}>{veria.voice.greeting}</Text>
+        {/* Lightweight preview of "why this veria" — the dedicated reveal screen is planned for a later phase. */}
+        <Text style={[typography.caption, { textAlign: 'center' }]}>{veria.metadata.generationReason}</Text>
         <View style={{ width: '100%', gap: spacing.md }}>
-          <ProfileField label="種族" value={veria.species} />
-          <ProfileField label="見た目" value={veria.appearance} />
-          <ProfileField label="性格" value={veria.personality} />
-          <ProfileField label="キーワード" value={veria.keywords.join(' / ')} />
-          <ProfileField label="話し方" value={veria.voiceTone} />
-          <ProfileField label="好きなライド" value={veria.favoriteRide} />
-          <ProfileField label="好きな季節" value={veria.favoriteSeason} />
+          <ProfileField label="Theme" value={`${veria.theme.summary}（${veria.theme.keywords.join(' / ')}）`} />
+          <ProfileField label="種族" value={veria.species.name} />
+          <ProfileField label="見た目" value={veria.appearance.description} />
+          <ProfileField label="性格" value={veria.personality.description} />
+          <ProfileField label="キーワード" value={veria.personality.emotionKeywords.join(' / ')} />
+          <ProfileField label="話し方" value={veria.voice.tone} />
+          <ProfileField label="好きなライド" value={veria.personality.favoriteRide} />
+          <ProfileField label="好きな季節" value={veria.personality.favoriteSeason} />
           <ProfileField label="誕生日" value={veria.birthday} />
         </View>
       </ScrollView>
