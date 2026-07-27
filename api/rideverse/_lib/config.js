@@ -7,8 +7,9 @@ export const AI_CONFIG = {
 }
 
 // Path (relative to this repo) to the official "Velia #001 — Riviera" reference
-// sheet, checked in at rideverse/design/official-velia-001-reference.png. It is
-// currently used only as a written style note (see veriaDesignReference.js) —
-// see that file's comment for why the raw multi-panel sheet isn't fed directly
-// into image generation yet.
-export const OFFICIAL_REFERENCE_IMAGE_PATH = 'rideverse/design/official-velia-001-reference.png'
+// sheet (v002 revision — now shown holding her bicycle), checked in at
+// rideverse/design/official-velia-002-reference.png. It is currently used only
+// as a written style note (see veriaDesignReference.js) — see that file's
+// comment for why the raw multi-panel sheet isn't fed directly into image
+// generation yet.
+export const OFFICIAL_REFERENCE_IMAGE_PATH = 'rideverse/design/official-velia-002-reference.png'

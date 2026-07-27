@@ -81,7 +81,7 @@ export const STYLE_DNA = [
   'Road cycling shoes',
   'Official game concept art',
   'White background',
-  'Standing pose',
+  'Standing pose, holding the bicycle with one hand',
   'Front view',
   'No realistic anatomy',
   'No muscular body',
@@ -93,6 +93,8 @@ export const SD_PROPORTION_MANDATE = `最重要条件: 必ずSDキャラクタ�
 
 // STEP3 画像生成プロンプトの禁止要件（negative）。Style DNA内の "No ..." 項目とは別に、
 // 武器・ホラー要素など明確に禁止したい項目をここで管理する。
+// 注意: 自転車自体はキャラクターが片手で持つ必須の被写体であり、ここでいう
+// 「背景の小道具」には含まれない（背景そのものは引き続きプレーンな白にする）。
 export const IMAGE_NEGATIVE_PROMPT = [
   'No weapon',
   'No armor',
@@ -102,20 +104,23 @@ export const IMAGE_NEGATIVE_PROMPT = [
   'No text',
   'No logo',
   'No watermark',
-  'No scenery or props in the background (plain white background only)',
+  'No background scenery or extra props (plain white background only — the bicycle held by the character is required and is not an excluded prop)',
 ]
 
-// 公式ヴェリア1号機「リヴェラ」は rideverse/design/official-velia-001-reference.png に
-// 実データを保存済み（複数ポーズ・表情・設定表を含む1枚のリファレンスシート）。
+// 公式ヴェリア1号機「リヴェラ」は rideverse/design/official-velia-002-reference.png に
+// 実データを保存済み（複数ポーズ・表情・設定表を含む1枚のリファレンスシート。v002で
+// 自転車を片手に持つポーズに更新）。
 // OpenAI Images generations API はテキストのみのプロンプトで、シート画像そのものを
 // スタイル参照として渡すには images.edit（画像入力）が必要だが、このシートは表や
 // 日本語ラベルを含む複合画像のため、そのまま渡すとキャラクター以外の要素（表・文字）を
 // 誤って再現するリスクが高い。そのため現時点ではシート自体を画像生成APIには渡さず、
-// その視覚的特徴（特に頭身・可愛さの基準）を以下のテキスト記述として反映する運用にしている。
+// その視覚的特徴（特に頭身・可愛さの基準、自転車の持ち方）を以下のテキスト記述として
+// 反映する運用にしている。
 // 将来的に「正面立ち絵のみを切り出した参照画像」を用意できれば、
 // openaiClient.js に images.edit 呼び出しを追加して画風の直接継承に切り替えられる。
 export const OFFICIAL_REFERENCE_STYLE_NOTE = `公式ヴェリア1号機「リヴェラ(Riviera)」のデザイン言語・頭身・可愛さを基準とすること:
 - 灰〜シルバーがかった毛並みに、青系のジャージとゴーグル
 - 大きな紫がかった瞳、丸みのあるシルエット、2.5頭身のSDプロポーション（頭が大きく体が小さい）
 - 柔らかい陰影のアニメ塗り、パステル寄りの配色
-- 表情は基本的に明るく親しみやすい笑顔`
+- 表情は基本的に明るく親しみやすい笑顔
+- 自転車のハンドルを片手で持ち、自転車と並んで立つポーズ（v002リファレンス準拠）`

@@ -25,7 +25,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing bikeInfo or species' })
   }
 
-  const colorGuidance = `カラー反映ルール: メインカラー「${bikeInfo.mainColor}」を毛色・瞳・ジャージに、差し色「${bikeInfo.accentColor}」を小物・アクセントに使うこと。`
+  const colorGuidance = `カラー反映ルール: メインカラー「${bikeInfo.mainColor}」を毛色・瞳・ジャージ・自転車のフレームに、差し色「${bikeInfo.accentColor}」を小物・アクセサリー・自転車の差し色部分に使うこと。`
+  const bikeGuidance = `Bike: this rider's own ${bikeInfo.bikeType} bicycle, held upright by its handlebar with one hand while the character stands beside it.`
 
   const prompt = `${WORLD_VIEW}
 
@@ -42,6 +43,7 @@ Create one original Velia.
 Theme: ${theme?.summary || ''} (${(theme?.keywords || []).join(', ')})
 Species: ${species.name}
 Personality: ${personality?.description || ''} (${(personality?.emotionKeywords || []).join(', ')})
+${bikeGuidance}
 ${colorGuidance}
 
 Style DNA (must include every one of these in the rendered character):

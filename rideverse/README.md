@@ -44,7 +44,7 @@ rideverse/
       ai/                           text(文章) / image(画像) / vision(解析) を完全に分離したクライアント
       supabase/                     client, storage, repositories(users/velias/generation_history)
   supabase/schema.sql                 最低限のテーブル定義 + RLS
-  design/official-velia-001-reference.png  公式ヴェリア1号機「リヴェラ」デザインシート（実データ）
+  design/official-velia-002-reference.png  公式ヴェリア1号機「リヴェラ」デザインシート v002（実データ）
 api/rideverse/                        OpenAI呼び出しを行うサーバーレス関数（APIキーを隠す層）
   _lib/config.js                      モデルIDを一箇所に集約（差し替えが容易）
   _lib/veriaDesignReference.js        世界観・Bike Type→Theme方向性・重み・生成順・Style DNAを集約
@@ -86,7 +86,9 @@ STEP3は入力に `Theme / Species / Personality`（＝STEP2の出力）を含�
 
 ### 公式リファレンス画像について
 
-`rideverse/design/official-velia-001-reference.png` として実データをリポジトリに保存しています。ただしこのシートは複数ポーズ・表情・設定表を含む1枚の複合画像（インフォグラフィック）のため、OpenAI Images生成APIにそのまま画像入力として渡す（`images.edit`）と、キャラクター以外の要素（表・日本語ラベル）を誤って再現するリスクが高いと判断し、**現時点ではテキストによるスタイル記述**（`OFFICIAL_REFERENCE_STYLE_NOTE` / `SD_PROPORTION_MANDATE`）としてプロンプトに反映しています。正面立ち絵のみを切り出した参照画像を別途用意できれば、`images.edit` による直接的なスタイル継承への切り替えが可能です。
+`rideverse/design/official-velia-002-reference.png`（v002、自転車を片手に持つポーズに更新）として実データをリポジトリに保存しています。旧版の `official-velia-001-reference.png` は削除し、こちらに差し替えました。このシートは複数ポーズ・表情・設定表を含む1枚の複合画像（インフォグラフィック）のため、OpenAI Images生成APIにそのまま画像入力として渡す（`images.edit`）と、キャラクター以外の要素（表・日本語ラベル）を誤って再現するリスクが高いと判断し、**現時点ではテキストによるスタイル記述**（`OFFICIAL_REFERENCE_STYLE_NOTE` / `SD_PROPORTION_MANDATE`）としてプロンプトに反映しています。正面立ち絵のみを切り出した参照画像を別途用意できれば、`images.edit` による直接的なスタイル継承への切り替えが可能です。
+
+**ポーズ変更**: v002の反映に伴い、STEP3の `STYLE_DNA` の "Standing pose" を「自転車のハンドルを片手で持って隣に立つポーズ」に変更しました。また、生成される自転車自体（フレームカラー）にもライダーのメインカラー/差し色を反映するようプロンプトを更新し、Negative Promptの「背景に小道具なし」の一文が自転車を除外しないよう注記を追加しています。
 
 ## 実装上の主な判断・提案（未確定事項）
 
