@@ -7,29 +7,46 @@ import { ScreenContainer } from '@/components/ScreenContainer'
 import { spacing, typography } from '@/theme'
 import { useGenerationSession } from '@/context/GenerationSessionContext'
 import { analyzeBikePhoto } from '@/services/ai/vision/analyzeBikePhoto'
-import { BikeAnalysisResult } from './types'
 import { BikePhotoPicker } from './components/BikePhotoPicker'
-import { BikeInfoForm } from './components/BikeInfoForm'
+import { BikeInfoForm, BikeFormFields } from './components/BikeInfoForm'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BikeRegistration'>
+
+const EMPTY_FIELDS: BikeFormFields = {
+  bikeType: 'unknown',
+  manufacturer: '',
+  model: '',
+  mainColor: '',
+  accentColor: '',
+  wheelDepth: '',
+  frameStyle: '',
+}
+
+/** The Vision step returns "unknown" instead of guessing — treat that as "needs manual input". */
+function clearUnknown(value: string): string {
+  return value === 'unknown' ? '' : value
+}
 
 export function BikeRegistrationScreen({ navigation }: Props) {
   const { setBikeInfo } = useGenerationSession()
   const [photoUri, setPhotoUri] = useState<string | null>(null)
-  const [manufacturer, setManufacturer] = useState('')
-  const [color, setColor] = useState('')
-  const [analysis, setAnalysis] = useState<BikeAnalysisResult | null>(null)
+  const [fields, setFields] = useState<BikeFormFields>(EMPTY_FIELDS)
   const [analyzing, setAnalyzing] = useState(false)
 
   async function handlePicked(photo: { uri: string; base64: string }) {
     setPhotoUri(photo.uri)
-    setAnalysis(null)
     setAnalyzing(true)
     try {
       const result = await analyzeBikePhoto(photo.base64)
-      setAnalysis(result)
-      if (result.manufacturerCandidates[0]) setManufacturer(result.manufacturerCandidates[0])
-      if (result.colorCandidates[0]) setColor(result.colorCandidates[0])
+      setFields({
+        bikeType: result.bikeType,
+        manufacturer: clearUnknown(result.manufacturer),
+        model: clearUnknown(result.model),
+        mainColor: clearUnknown(result.mainColor),
+        accentColor: clearUnknown(result.accentColor),
+        wheelDepth: clearUnknown(result.wheelDepth),
+        frameStyle: clearUnknown(result.frameStyle),
+      })
     } catch {
       // AI analysis is an assist only — the rider can still fill the form by hand.
     } finally {
@@ -37,11 +54,24 @@ export function BikeRegistrationScreen({ navigation }: Props) {
     }
   }
 
-  const canProceed = photoUri !== null && manufacturer.trim().length > 0 && color.trim().length > 0
+  const canProceed =
+    photoUri !== null &&
+    fields.bikeType !== 'unknown' &&
+    fields.manufacturer.trim().length > 0 &&
+    fields.mainColor.trim().length > 0
 
   function handleNext() {
     if (!photoUri) return
-    setBikeInfo({ photoUri, manufacturer: manufacturer.trim(), color: color.trim() })
+    setBikeInfo({
+      photoUri,
+      bikeType: fields.bikeType,
+      manufacturer: fields.manufacturer.trim(),
+      model: fields.model.trim() || 'unknown',
+      mainColor: fields.mainColor.trim(),
+      accentColor: fields.accentColor.trim() || 'unknown',
+      wheelDepth: fields.wheelDepth.trim() || 'unknown',
+      frameStyle: fields.frameStyle.trim() || 'unknown',
+    })
     navigation.navigate('Questions')
   }
 
@@ -52,13 +82,7 @@ export function BikeRegistrationScreen({ navigation }: Props) {
         <Text style={typography.caption}>あなたの相棒の自転車を撮影・選択してください</Text>
         <BikePhotoPicker photoUri={photoUri} onPicked={handlePicked} disabled={analyzing} />
         {analyzing && <Text style={typography.caption}>AIが自転車を解析しています...</Text>}
-        <BikeInfoForm
-          manufacturer={manufacturer}
-          color={color}
-          onManufacturerChange={setManufacturer}
-          onColorChange={setColor}
-          analysis={analysis}
-        />
+        <BikeInfoForm fields={fields} onChange={(patch) => setFields((prev) => ({ ...prev, ...patch }))} />
         <Button label="次へ" onPress={handleNext} disabled={!canProceed} />
       </ScrollView>
     </ScreenContainer>

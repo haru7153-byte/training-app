@@ -1,33 +1,55 @@
 import { AI_CONFIG } from './_lib/config.js'
 import { generateImage } from './_lib/openaiClient.js'
-import { CHARACTER_DESIGN_RULES, styleReferenceNote, WORLD_VIEW } from './_lib/veriaDesignReference.js'
+import {
+  bikeTypeDirectionText,
+  CHARACTER_DESIGN_RULES,
+  IMAGE_NEGATIVE_PROMPT,
+  IMAGE_POSITIVE_REQUIREMENTS,
+  OFFICIAL_REFERENCE_STYLE_NOTE,
+  WORLD_VIEW,
+} from './_lib/veriaDesignReference.js'
 
-// Image generation only — completely independent of generate-veria-profile.js.
-// Takes the same raw inputs (bike + answers) rather than depending on the text
-// output, so either call can fail, retry, or swap providers on its own.
+// STEP3 Image Generation — a separate model/prompt/endpoint from
+// generate-veria-profile.js (STEP2), so either can be swapped independently.
+// It does take species/personality/keywords produced by STEP2 as input (per
+// the v1.0 spec), so the client calls STEP2 first and passes its result here —
+// that's a data hand-off, not a code dependency between the two services.
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { bikeInfo, answers } = req.body || {}
-  if (!bikeInfo || !answers) {
-    return res.status(400).json({ error: 'Missing bikeInfo or answers' })
+  const { bikeInfo, species, personality, keywords } = req.body || {}
+  if (!bikeInfo || !species) {
+    return res.status(400).json({ error: 'Missing bikeInfo or species' })
   }
+
+  const colorGuidance = `カラー反映ルール: メインカラー「${bikeInfo.mainColor}」を毛色・瞳・ジャージに、差し色「${bikeInfo.accentColor}」を小物・アクセントに使うこと。`
 
   const prompt = `${WORLD_VIEW}
 
-${CHARACTER_DESIGN_RULES}${styleReferenceNote()}
+${CHARACTER_DESIGN_RULES}
 
-このライダーの自転車: メーカー「${bikeInfo.manufacturer}」、カラー「${bikeInfo.color}」
-ライダーの好み: ${JSON.stringify(answers)}
+${OFFICIAL_REFERENCE_STYLE_NOTE}
 
-上記の設定に基づき、このライダーだけの世界に一人だけのヴェリアを1体、正面向き全身で描いてください。
-背景はシンプルに、キャラクター単体が主役になるように。`
+${bikeTypeDirectionText(bikeInfo.bikeType)}
+
+Create one original Velia (SD style, front view, full body, standing pose).
+
+Species: ${species}
+Personality: ${personality || ''}
+Keywords: ${(keywords || []).join(', ')}
+${colorGuidance}
+
+Requirements (must follow all):
+${IMAGE_POSITIVE_REQUIREMENTS.map((line) => `- ${line}`).join('\n')}
+
+Negative prompt (must NOT include any of these):
+${IMAGE_NEGATIVE_PROMPT.map((line) => `- ${line}`).join('\n')}`
 
   try {
     const imageUrl = await generateImage({ model: AI_CONFIG.imageModel, prompt })
-    res.status(200).json({ imageUrl })
+    res.status(200).json({ imageUrl, imagePrompt: prompt })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

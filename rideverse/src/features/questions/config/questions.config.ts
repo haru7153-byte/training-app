@@ -1,17 +1,19 @@
 import { QuestionDefinition } from '../types'
 
 // Add, remove, or reorder entries here to change the interview — QuestionsScreen
-// renders purely from this array, so question count/content never needs a code change.
+// renders purely from this array, so question count/content never needs a code
+// change. Velia Generation Reference v1.0 calls for 8〜10 questions; these 10
+// match the reference's example list.
 export const QUESTIONS: QuestionDefinition[] = [
   {
-    id: 'rideStyle',
-    prompt: 'あなたのライドスタイルは？',
+    id: 'ridePurpose',
+    prompt: 'ライドの目的は？',
     type: 'single-choice',
     options: [
-      { id: 'long_ride', label: 'ロングライド' },
-      { id: 'hill_climb', label: 'ヒルクライム' },
-      { id: 'race', label: 'レース・TT' },
-      { id: 'casual', label: 'のんびりポタリング' },
+      { id: 'fitness', label: '健康・トレーニング' },
+      { id: 'stress_relief', label: 'ストレス発散' },
+      { id: 'challenge', label: '記録への挑戦' },
+      { id: 'scenery', label: '景色を楽しむ' },
     ],
   },
   {
@@ -26,30 +28,30 @@ export const QUESTIONS: QuestionDefinition[] = [
     ],
   },
   {
-    id: 'favoriteColor',
-    prompt: '好きな色は？',
+    id: 'favoriteSeason',
+    prompt: '好きな季節は？',
     type: 'single-choice',
     options: [
-      { id: 'blue', label: 'ブルー' },
-      { id: 'green', label: 'グリーン' },
-      { id: 'pink', label: 'ピンク' },
-      { id: 'yellow', label: 'イエロー' },
-      { id: 'white', label: 'ホワイト' },
+      { id: 'spring', label: '春' },
+      { id: 'summer', label: '夏' },
+      { id: 'autumn', label: '秋' },
+      { id: 'winter', label: '冬' },
     ],
   },
   {
-    id: 'cuteOrCool',
-    prompt: 'かわいい？かっこいい？',
+    id: 'rideTime',
+    prompt: 'よく走る時間帯は？',
     type: 'single-choice',
     options: [
-      { id: 'cute', label: 'かわいい' },
-      { id: 'cool', label: 'かっこいい' },
-      { id: 'both', label: 'どちらも' },
+      { id: 'early_morning', label: '早朝' },
+      { id: 'daytime', label: '日中' },
+      { id: 'evening', label: '夕方' },
+      { id: 'night', label: '夜' },
     ],
   },
   {
     id: 'personality',
-    prompt: 'どんな性格がいい？',
+    prompt: 'あなたの性格に近いのは？',
     type: 'single-choice',
     options: [
       { id: 'gentle', label: '優しい' },
@@ -59,13 +61,57 @@ export const QUESTIONS: QuestionDefinition[] = [
     ],
   },
   {
-    id: 'genderPreference',
-    prompt: '性別の希望は？',
+    id: 'challengeOriented',
+    prompt: 'チャレンジ派？',
     type: 'single-choice',
     options: [
-      { id: 'male', label: '男の子' },
-      { id: 'female', label: '女の子' },
-      { id: 'random', label: 'おまかせ' },
+      { id: 'very', label: 'とてもそう' },
+      { id: 'somewhat', label: 'まあまあ' },
+      { id: 'a_little', label: 'あまり' },
+      { id: 'no', label: 'いいえ' },
+    ],
+  },
+  {
+    id: 'relaxedOriented',
+    prompt: 'のんびり派？',
+    type: 'single-choice',
+    options: [
+      { id: 'very', label: 'とてもそう' },
+      { id: 'somewhat', label: 'まあまあ' },
+      { id: 'a_little', label: 'あまり' },
+      { id: 'no', label: 'いいえ' },
+    ],
+  },
+  {
+    id: 'raceOriented',
+    prompt: 'レース志向？',
+    type: 'single-choice',
+    options: [
+      { id: 'very', label: 'とてもそう' },
+      { id: 'somewhat', label: 'まあまあ' },
+      { id: 'a_little', label: 'あまり' },
+      { id: 'no', label: 'いいえ' },
+    ],
+  },
+  {
+    id: 'cafeLover',
+    prompt: 'カフェ好き？',
+    type: 'single-choice',
+    options: [
+      { id: 'love', label: '大好き' },
+      { id: 'like', label: '好き' },
+      { id: 'neutral', label: 'どちらでもない' },
+      { id: 'not_much', label: 'あまり' },
+    ],
+  },
+  {
+    id: 'soloOrGroup',
+    prompt: '一人派？仲間派？',
+    type: 'single-choice',
+    options: [
+      { id: 'solo', label: '一人が好き' },
+      { id: 'group', label: '仲間とが好き' },
+      { id: 'both', label: 'どちらも好き' },
     ],
   },
 ]

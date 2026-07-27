@@ -1,18 +1,17 @@
-export interface VeriaAttributes {
-  /** ファンタジー属性。例: 「風」「森」「水」 */
-  element: string
-  /** 色テーマ。例: 「セレステブルー」 */
-  colorTheme: string
-}
-
-/** AIが生成する、名付け前のヴェリアの中身。画像生成と文章生成は別APIから独立して届く。 */
+/** AIが生成する、名付け前のヴェリアの中身。文章生成(STEP2)と画像生成(STEP3)は別APIから独立して届く。 */
 export interface GeneratedVeriaContent {
-  imageUrl: string
   species: string
-  attributes: VeriaAttributes
+  appearance: string
   personality: string
-  introduction: string
+  keywords: string[]
+  voiceTone: string
+  greeting: string
+  favoriteRide: string
+  favoriteSeason: string
   nameCandidates: string[]
+  imageUrl: string
+  /** STEP3で実際に使われた画像生成プロンプト。再現性のため保存する。 */
+  imagePrompt: string
 }
 
 /** 名付け・保存後の完成したヴェリア。 */

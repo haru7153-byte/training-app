@@ -15,8 +15,10 @@ interface UseVeriaGenerationResult {
 }
 
 /**
- * Orchestrates the two independent AI calls (text profile + image) from the same
- * raw inputs. They run in parallel and neither depends on the other's output.
+ * Orchestrates the two independent AI services: STEP2 (text profile) and STEP3
+ * (image). They are separate models/prompts/endpoints, but per the v1.0 spec
+ * STEP3 takes STEP2's species/personality/keywords as input, so this hook runs
+ * them in sequence rather than in parallel.
  */
 export function useVeriaGeneration(bikeInfo: BikeInfo | null, answers: QuestionAnswers): UseVeriaGenerationResult {
   const [status, setStatus] = useState<Status>('loading')
@@ -29,11 +31,14 @@ export function useVeriaGeneration(bikeInfo: BikeInfo | null, answers: QuestionA
     setStatus('loading')
     setError(null)
     try {
-      const [profile, imageUrl] = await Promise.all([
-        generateVeriaProfile(bikeInfo, answers),
-        generateVeriaImage(bikeInfo, answers),
-      ])
-      setContent({ ...profile, imageUrl })
+      const profile = await generateVeriaProfile(bikeInfo, answers)
+      const { imageUrl, imagePrompt } = await generateVeriaImage({
+        bikeInfo,
+        species: profile.species,
+        personality: profile.personality,
+        keywords: profile.keywords,
+      })
+      setContent({ ...profile, imageUrl, imagePrompt })
       setStatus('success')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ヴェリアの生成に失敗しました')

@@ -3,9 +3,9 @@ import { BikeInfo } from '@/features/bike/types'
 import { QuestionAnswers } from '@/features/questions/types'
 import { GeneratedVeriaContent } from '@/types/veria'
 
-type ProfileOnly = Omit<GeneratedVeriaContent, 'imageUrl'>
+export type VeriaProfile = Omit<GeneratedVeriaContent, 'imageUrl' | 'imagePrompt'>
 
-/** Text/profile generation only. Independent of generateVeriaImage — see that module. */
-export function generateVeriaProfile(bikeInfo: BikeInfo, answers: QuestionAnswers): Promise<ProfileOnly> {
-  return postJSON<ProfileOnly>('/api/rideverse/generate-veria-profile', { bikeInfo, answers })
+/** STEP2 Personality — text/profile generation only. Independent of generateVeriaImage — see that module. */
+export function generateVeriaProfile(bikeInfo: BikeInfo, answers: QuestionAnswers): Promise<VeriaProfile> {
+  return postJSON<VeriaProfile>('/api/rideverse/generate-veria-profile', { bikeInfo, answers })
 }

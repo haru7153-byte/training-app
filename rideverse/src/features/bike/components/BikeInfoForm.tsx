@@ -1,49 +1,54 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { BikeAnalysisResult } from '../types'
+import { BikeType, BIKE_TYPES } from '../types'
 import { colors, radius, spacing, typography } from '@/theme'
 
-interface BikeInfoFormProps {
+export interface BikeFormFields {
+  bikeType: BikeType
   manufacturer: string
-  color: string
-  onManufacturerChange: (value: string) => void
-  onColorChange: (value: string) => void
-  analysis: BikeAnalysisResult | null
+  model: string
+  mainColor: string
+  accentColor: string
+  wheelDepth: string
+  frameStyle: string
 }
 
-function CandidateChips({ label, candidates, onSelect }: { label: string; candidates: string[]; onSelect: (v: string) => void }) {
-  if (candidates.length === 0) return null
+interface BikeInfoFormProps {
+  fields: BikeFormFields
+  onChange: (patch: Partial<BikeFormFields>) => void
+}
+
+function FieldInput({ label, value, onChangeText, placeholder }: { label: string; value: string; onChangeText: (v: string) => void; placeholder?: string }) {
   return (
     <View style={{ gap: spacing.xs }}>
-      <Text style={typography.caption}>{label}の候補（タップで入力）</Text>
-      <View style={styles.chipRow}>
-        {candidates.map((candidate) => (
-          <Pressable key={candidate} style={styles.chip} onPress={() => onSelect(candidate)}>
-            <Text style={styles.chipText}>{candidate}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Text style={typography.subtitle}>{label}</Text>
+      <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder ?? '未入力（AIが解析できませんでした）'} style={styles.input} />
     </View>
   )
 }
 
-export function BikeInfoForm({ manufacturer, color, onManufacturerChange, onColorChange, analysis }: BikeInfoFormProps) {
+export function BikeInfoForm({ fields, onChange }: BikeInfoFormProps) {
   return (
     <View style={{ gap: spacing.lg }}>
-      <View style={{ gap: spacing.sm }}>
-        <Text style={typography.subtitle}>メーカー</Text>
-        <TextInput
-          value={manufacturer}
-          onChangeText={onManufacturerChange}
-          placeholder="例: TREK"
-          style={styles.input}
-        />
-        <CandidateChips label="メーカー" candidates={analysis?.manufacturerCandidates ?? []} onSelect={onManufacturerChange} />
+      <View style={{ gap: spacing.xs }}>
+        <Text style={typography.subtitle}>Bike Type</Text>
+        <View style={styles.chipRow}>
+          {BIKE_TYPES.map((type) => (
+            <Pressable
+              key={type.id}
+              style={[styles.chip, fields.bikeType === type.id && styles.chipSelected]}
+              onPress={() => onChange({ bikeType: type.id })}
+            >
+              <Text style={[styles.chipText, fields.bikeType === type.id && styles.chipTextSelected]}>{type.label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
-      <View style={{ gap: spacing.sm }}>
-        <Text style={typography.subtitle}>カラー</Text>
-        <TextInput value={color} onChangeText={onColorChange} placeholder="例: マットブラック" style={styles.input} />
-        <CandidateChips label="カラー" candidates={analysis?.colorCandidates ?? []} onSelect={onColorChange} />
-      </View>
+      <FieldInput label="メーカー" value={fields.manufacturer} onChangeText={(v) => onChange({ manufacturer: v })} placeholder="例: TREK" />
+      <FieldInput label="モデル" value={fields.model} onChangeText={(v) => onChange({ model: v })} placeholder="例: Domane" />
+      <FieldInput label="メインカラー" value={fields.mainColor} onChangeText={(v) => onChange({ mainColor: v })} placeholder="例: マットブラック" />
+      <FieldInput label="差し色" value={fields.accentColor} onChangeText={(v) => onChange({ accentColor: v })} placeholder="例: ホワイト" />
+      <FieldInput label="ホイール" value={fields.wheelDepth} onChangeText={(v) => onChange({ wheelDepth: v })} placeholder="例: shallow / deep" />
+      <FieldInput label="フレーム" value={fields.frameStyle} onChangeText={(v) => onChange({ frameStyle: v })} placeholder="例: aero / endurance" />
     </View>
   )
 }
@@ -60,10 +65,14 @@ const styles = StyleSheet.create({
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   chip: {
-    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  chipText: { color: colors.accent, fontWeight: '600', fontSize: 13 },
+  chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  chipText: { color: colors.text, fontWeight: '600', fontSize: 13 },
+  chipTextSelected: { color: colors.textInverse },
 })
