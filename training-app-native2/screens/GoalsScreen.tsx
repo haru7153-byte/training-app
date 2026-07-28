@@ -4,6 +4,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { GoalType, TrainingFocus } from '../lib/plan'
+import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
 import { C, styles } from '../lib/theme'
 
 type TssTier = 'light' | 'standard' | 'hard'
@@ -50,6 +51,36 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
   const [ftpTestEnabled, setFtpTestEnabled] = useState(true)
   const [goalPresetIndex, setGoalPresetIndex] = useState(0) // -1 = その他（自由入力）
   const [tssAutoTier, setTssAutoTier] = useState<TssTier | null>(null)
+
+  const [notifEnabled, setNotifEnabled] = useState(false)
+  const [notifHour, setNotifHour] = useState(20)
+  const [notifMinute, setNotifMinute] = useState(0)
+  const [showNotifTimePicker, setShowNotifTimePicker] = useState(false)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifMsg, setNotifMsg] = useState('')
+
+  useEffect(() => {
+    loadNotificationSettings().then(s => {
+      setNotifEnabled(s.enabled)
+      setNotifHour(s.hour)
+      setNotifMinute(s.minute)
+    })
+  }, [])
+
+  async function updateNotifSettings(next: NotificationSettings) {
+    setNotifSaving(true)
+    setNotifMsg('')
+    const result = await applyNotificationSettings(next)
+    if (result.ok) {
+      setNotifEnabled(next.enabled)
+      setNotifHour(next.hour)
+      setNotifMinute(next.minute)
+    } else {
+      setNotifEnabled(false)
+      setNotifMsg('⚠️ 通知が許可されていません。端末の設定アプリからこのアプリの通知を許可してください。')
+    }
+    setNotifSaving(false)
+  }
 
   function selectGoalPreset(idx: number) {
     setShowGoalDropdown(false)
@@ -508,6 +539,66 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
           </View>
         </View>
       )}
+
+      <View style={styles.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={styles.sectionTitle}>🔔 通知</Text>
+            <Text style={{ fontSize: 12, color: C.sub, marginTop: -6 }}>毎日決まった時間にリマインドします</Text>
+          </View>
+          <Switch
+            value={notifEnabled}
+            disabled={notifSaving}
+            onValueChange={v => updateNotifSettings({ enabled: v, hour: notifHour, minute: notifMinute })}
+            trackColor={{ false: C.border, true: C.blue }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        {notifEnabled && (
+          <>
+            <TouchableOpacity
+              onPress={() => setShowNotifTimePicker(v => !v)}
+              style={{
+                marginTop: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: showNotifTimePicker ? C.blue : C.border,
+                borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              }}
+            >
+              <Text style={{ color: C.text, fontSize: 14 }}>
+                🕐 {String(notifHour).padStart(2, '0')}:{String(notifMinute).padStart(2, '0')}
+              </Text>
+              <Text style={{ color: C.muted, fontSize: 11 }}>{showNotifTimePicker ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {showNotifTimePicker && (
+              <>
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, overflow: 'hidden', marginTop: 8 }}>
+                  <DateTimePicker
+                    value={(() => { const d = new Date(); d.setHours(notifHour, notifMinute, 0, 0); return d })()}
+                    mode="time"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    locale="ja-JP"
+                    themeVariant="light"
+                    onChange={(_, date) => {
+                      if (Platform.OS === 'android') setShowNotifTimePicker(false)
+                      if (date) updateNotifSettings({ enabled: true, hour: date.getHours(), minute: date.getMinutes() })
+                    }}
+                  />
+                </View>
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    onPress={() => setShowNotifTimePicker(false)}
+                    style={{ backgroundColor: C.blue, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>完了</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {notifMsg !== '' && <Text style={{ fontSize: 12, color: C.orange, marginTop: 10, lineHeight: 16 }}>{notifMsg}</Text>}
+      </View>
 
       <TouchableOpacity
         onPress={() => supabase.auth.signOut()}

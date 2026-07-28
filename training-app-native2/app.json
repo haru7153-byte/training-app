@@ -36,6 +36,13 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3B82F6"
+        }
+      ],
+      [
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "体重データをヘルスケアから読み込むために使用します",
