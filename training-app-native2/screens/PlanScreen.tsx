@@ -346,8 +346,8 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         restDayIndices: week.rest_day_indices,
         ftpTestDay: week.ftp_test_day,
       })
-      if (r.status === 402) {
-        setWeekGenError(AI_PAYWALL_MESSAGE)
+      if (!r.ok) {
+        setWeekGenError(r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`)
         setGeneratingWeek(false)
         return
       }
@@ -404,8 +404,11 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         reviewStatus: result?.reviewStatus || day.review_status,
         actualSummary,
       })
-      if (r.status === 402) {
-        setAiErrorByDay(prev => ({ ...prev, [day.id]: AI_PAYWALL_MESSAGE }))
+      if (!r.ok) {
+        setAiErrorByDay(prev => ({
+          ...prev,
+          [day.id]: r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`,
+        }))
         setReviewingDayId(null)
         return
       }
@@ -414,7 +417,9 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         await updatePlanDayReview(day.id, { review_comment: data.comment })
         setCurrentWeekDays(prev => prev.map(d => (d.id === day.id ? { ...d, review_comment: data.comment } : d)))
       }
-    } catch {}
+    } catch {
+      setAiErrorByDay(prev => ({ ...prev, [day.id]: '通信エラーが発生しました。もう一度お試しください。' }))
+    }
     setReviewingDayId(null)
   }
 
@@ -462,8 +467,11 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         tomorrowDayLabel: tomorrowDay ? DAYS_JP[tomorrowDay.day_of_week] : null,
         tomorrowIsRestDay: tomorrowDay ? tomorrowDay.type === 'rest' : null,
       })
-      if (r.status === 402) {
-        setAiErrorByDay(prev => ({ ...prev, [day.id]: AI_PAYWALL_MESSAGE }))
+      if (!r.ok) {
+        setAiErrorByDay(prev => ({
+          ...prev,
+          [day.id]: r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`,
+        }))
         setAnalyzingDayId(null)
         return
       }
@@ -479,8 +487,12 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
           ...prev,
           [day.id]: { ...data, tomorrow, tomorrowDayId: tomorrowDay?.id ?? null },
         }))
+      } else {
+        setAiErrorByDay(prev => ({ ...prev, [day.id]: '分析に失敗しました。もう一度お試しください。' }))
       }
-    } catch {}
+    } catch {
+      setAiErrorByDay(prev => ({ ...prev, [day.id]: '通信エラーが発生しました。もう一度お試しください。' }))
+    }
     setAnalyzingDayId(null)
   }
 

@@ -161,15 +161,20 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
       })
 
       const r = await authedPost(`${VERCEL_BASE}/api/analyze-activities`, { days })
-      if (r.status === 402) {
-        setAiError(AI_PAYWALL_MESSAGE)
+      if (!r.ok) {
+        setAiError(r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`)
         setAnalyzing(false)
         return
       }
       const data = await r.json()
-      if (data && !data.error) setAiAnalysis(data)
+      if (data && !data.error) {
+        setAiAnalysis(data)
+      } else {
+        setAiError('分析に失敗しました。もう一度お試しください。')
+      }
     } catch {
       setAiAnalysis(null)
+      setAiError('通信エラーが発生しました。もう一度お試しください。')
     }
     setAnalyzing(false)
   }
