@@ -34,6 +34,8 @@ import {
   formatDateOnly,
 } from '../lib/plan'
 import { C, styles, PHASE_COLORS, ZONE_COLORS, REVIEW_LABELS, weekColor } from '../lib/theme'
+import { authedPost } from '../lib/apiClient'
+import { AI_PAYWALL_MESSAGE } from '../lib/entitlements'
 
 interface DayAnalysisResult {
   status: string
@@ -83,6 +85,7 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
   const [analyzingDayId, setAnalyzingDayId] = useState<string | null>(null)
   const [applyingTomorrowId, setApplyingTomorrowId] = useState<string | null>(null)
   const [appliedTomorrowIds, setAppliedTomorrowIds] = useState<Set<string>>(new Set())
+  const [aiErrorByDay, setAiErrorByDay] = useState<Record<string, string>>({})
 
   const [editingRest, setEditingRest] = useState(false)
   const [pendingRestDays, setPendingRestDays] = useState<Set<number> | null>(null)
@@ -331,22 +334,23 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
     setGeneratingWeek(true)
     setWeekGenError('')
     try {
-      const r = await fetch(`${VERCEL_BASE}/api/generate-plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ftp,
-          targetFtp: goalFtp,
-          eventName,
-          trainingFocus,
-          platform: activePlan.plan.platform,
-          phase: week.phase,
-          weekTargetTss: week.target_tss,
-          isRecoveryWeek: week.is_recovery_week,
-          restDayIndices: week.rest_day_indices,
-          ftpTestDay: week.ftp_test_day,
-        }),
+      const r = await authedPost(`${VERCEL_BASE}/api/generate-plan`, {
+        ftp,
+        targetFtp: goalFtp,
+        eventName,
+        trainingFocus,
+        platform: activePlan.plan.platform,
+        phase: week.phase,
+        weekTargetTss: week.target_tss,
+        isRecoveryWeek: week.is_recovery_week,
+        restDayIndices: week.rest_day_indices,
+        ftpTestDay: week.ftp_test_day,
       })
+      if (r.status === 402) {
+        setWeekGenError(AI_PAYWALL_MESSAGE)
+        setGeneratingWeek(false)
+        return
+      }
       const data = await r.json()
       if (!Array.isArray(data.days)) throw new Error('no days')
       const weekStart = parseDateOnly(week.week_start_date)
@@ -384,25 +388,27 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
 
   async function generateReviewComment(day: PlanDayRow) {
     setReviewingDayId(day.id)
+    setAiErrorByDay(prev => ({ ...prev, [day.id]: '' }))
     try {
       const result = reviewMap[day.id]
       const actualSummary =
         result && result.actualTss !== null ? `${result.actualDuration}分 TSS${result.actualTss}` : null
-      const r = await fetch(`${VERCEL_BASE}/api/review-day`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: day.date,
-          dayType: day.type,
-          plannedName: day.name,
-          plannedDuration: day.duration,
-          plannedTss: day.planned_tss,
-          plannedZone: day.zone,
-          plannedDescription: day.description,
-          reviewStatus: result?.reviewStatus || day.review_status,
-          actualSummary,
-        }),
+      const r = await authedPost(`${VERCEL_BASE}/api/review-day`, {
+        date: day.date,
+        dayType: day.type,
+        plannedName: day.name,
+        plannedDuration: day.duration,
+        plannedTss: day.planned_tss,
+        plannedZone: day.zone,
+        plannedDescription: day.description,
+        reviewStatus: result?.reviewStatus || day.review_status,
+        actualSummary,
       })
+      if (r.status === 402) {
+        setAiErrorByDay(prev => ({ ...prev, [day.id]: AI_PAYWALL_MESSAGE }))
+        setReviewingDayId(null)
+        return
+      }
       const data = await r.json()
       if (data.comment) {
         await updatePlanDayReview(day.id, { review_comment: data.comment })
@@ -414,6 +420,7 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
 
   async function analyzeDay(day: PlanDayRow) {
     setAnalyzingDayId(day.id)
+    setAiErrorByDay(prev => ({ ...prev, [day.id]: '' }))
     try {
       const result = reviewMap[day.id]
 
@@ -426,39 +433,40 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         .filter(d => parseDateOnly(d.date) <= today)
         .map(d => `${DAYS_JP[d.day_of_week]}:${REVIEW_LABELS[reviewMap[d.id]?.reviewStatus || d.review_status].label}`)
 
-      const r = await fetch(`${VERCEL_BASE}/api/analyze-day`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ftp,
-          goalFtp,
-          platform: activePlan?.plan.platform || 'Zwift',
-          planned: {
-            type: day.type,
-            name: day.name,
-            duration: day.duration,
-            tss: day.planned_tss,
-            zone: day.zone,
-            description: day.description,
-          },
-          actual:
-            result && result.actualTss !== null
-              ? {
-                  duration: result.actualDuration,
-                  tss: result.actualTss,
-                  avgWatts: result.avgWatts,
-                  weightedAvgWatts: result.weightedAvgWatts,
-                  avgHeartrate: result.avgHeartrate,
-                  maxHeartrate: result.maxHeartrate,
-                  avgCadence: result.avgCadence,
-                }
-              : null,
-          reviewStatus: result?.reviewStatus || day.review_status,
-          recentHistory,
-          tomorrowDayLabel: tomorrowDay ? DAYS_JP[tomorrowDay.day_of_week] : null,
-          tomorrowIsRestDay: tomorrowDay ? tomorrowDay.type === 'rest' : null,
-        }),
+      const r = await authedPost(`${VERCEL_BASE}/api/analyze-day`, {
+        ftp,
+        goalFtp,
+        platform: activePlan?.plan.platform || 'Zwift',
+        planned: {
+          type: day.type,
+          name: day.name,
+          duration: day.duration,
+          tss: day.planned_tss,
+          zone: day.zone,
+          description: day.description,
+        },
+        actual:
+          result && result.actualTss !== null
+            ? {
+                duration: result.actualDuration,
+                tss: result.actualTss,
+                avgWatts: result.avgWatts,
+                weightedAvgWatts: result.weightedAvgWatts,
+                avgHeartrate: result.avgHeartrate,
+                maxHeartrate: result.maxHeartrate,
+                avgCadence: result.avgCadence,
+              }
+            : null,
+        reviewStatus: result?.reviewStatus || day.review_status,
+        recentHistory,
+        tomorrowDayLabel: tomorrowDay ? DAYS_JP[tomorrowDay.day_of_week] : null,
+        tomorrowIsRestDay: tomorrowDay ? tomorrowDay.type === 'rest' : null,
       })
+      if (r.status === 402) {
+        setAiErrorByDay(prev => ({ ...prev, [day.id]: AI_PAYWALL_MESSAGE }))
+        setAnalyzingDayId(null)
+        return
+      }
       const data = await r.json()
       if (data.status) {
         const tomorrow = data.tomorrow
@@ -794,6 +802,10 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
               </Text>
             </TouchableOpacity>
           )}
+
+          {aiErrorByDay[todayDay.id] ? (
+            <Text style={{ fontSize: 12, color: C.orange, marginTop: 8, lineHeight: 16 }}>🔒 {aiErrorByDay[todayDay.id]}</Text>
+          ) : null}
 
           {todayScore != null && (
             <View style={{ marginTop: 10 }}>
@@ -1205,6 +1217,9 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
                       </Text>
                     </TouchableOpacity>
                   )}
+                  {aiErrorByDay[day.id] ? (
+                    <Text style={{ fontSize: 12, color: C.orange, marginTop: 6, lineHeight: 16 }}>🔒 {aiErrorByDay[day.id]}</Text>
+                  ) : null}
                 </View>
               )}
             </View>

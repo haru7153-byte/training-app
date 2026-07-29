@@ -5,6 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { GoalType, TrainingFocus } from '../lib/plan'
 import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
+import { getEntitlementInfo, EntitlementInfo } from '../lib/entitlements'
+import { isPurchasesConfigured, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
+import { PurchasesOffering } from 'react-native-purchases'
 import { C, styles } from '../lib/theme'
 
 type TssTier = 'light' | 'standard' | 'hard'
@@ -80,6 +83,48 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
       setNotifMsg('⚠️ 通知が許可されていません。端末の設定アプリからこのアプリの通知を許可してください。')
     }
     setNotifSaving(false)
+  }
+
+  const [entitlement, setEntitlement] = useState<EntitlementInfo | null>(null)
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [subscribing, setSubscribing] = useState(false)
+  const [subMsg, setSubMsg] = useState('')
+
+  useEffect(() => {
+    refreshEntitlement()
+    getCurrentOffering().then(setOffering)
+  }, [])
+
+  function refreshEntitlement() {
+    getEntitlementInfo().then(setEntitlement)
+  }
+
+  async function handleSubscribe() {
+    const pkg = offering?.availablePackages[0]
+    if (!pkg) return
+    setSubscribing(true)
+    setSubMsg('')
+    const result = await purchasePackage(pkg)
+    if (result.ok) {
+      setSubMsg('✅ 購読処理が完了しました。反映まで少し時間がかかることがあります。')
+      setTimeout(refreshEntitlement, 3000)
+    } else if (result.error !== 'cancelled') {
+      setSubMsg('❌ 購読処理に失敗しました。もう一度お試しください。')
+    }
+    setSubscribing(false)
+  }
+
+  async function handleRestore() {
+    setSubscribing(true)
+    setSubMsg('')
+    const result = await restorePurchases()
+    if (result.ok) {
+      setSubMsg('✅ 購入を復元しました。')
+      setTimeout(refreshEntitlement, 2000)
+    } else {
+      setSubMsg('復元できる購入が見つかりませんでした。')
+    }
+    setSubscribing(false)
   }
 
   function selectGoalPreset(idx: number) {
@@ -598,6 +643,58 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
         )}
 
         {notifMsg !== '' && <Text style={{ fontSize: 12, color: C.orange, marginTop: 10, lineHeight: 16 }}>{notifMsg}</Text>}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>💳 プラン</Text>
+        <Text style={{ fontSize: 12, color: C.sub, marginTop: -6, marginBottom: 12, lineHeight: 16 }}>
+          プラン・体重記録・Strava連携などの基本機能はずっと無料です。AI機能（プラン自動生成・週次/日次分析）だけ、サインアップから30日間の無料期間のあと購読が必要になります。
+        </Text>
+
+        {!entitlement ? (
+          <Text style={{ fontSize: 12, color: C.muted }}>読み込み中...</Text>
+        ) : entitlement.subscribed ? (
+          <Text style={{ fontSize: 14, fontWeight: '800', color: C.green }}>✅ AI機能 購読中</Text>
+        ) : entitlement.trialActive ? (
+          <View>
+            <Text style={{ fontSize: 13, color: C.text }}>AI機能は無料体験期間中です</Text>
+            <Text style={{ fontSize: 24, fontWeight: '900', color: C.blue, marginTop: 4 }}>あと{entitlement.trialDaysLeft}日</Text>
+          </View>
+        ) : (
+          <View>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: C.orange }}>無料期間が終了しました</Text>
+            <Text style={{ fontSize: 12, color: C.sub, marginTop: 4, lineHeight: 16 }}>
+              AI機能を引き続き使うには購読が必要です。基本機能はこのまま無料で使えます。
+            </Text>
+          </View>
+        )}
+
+        {!entitlement?.subscribed && (
+          <>
+            {isPurchasesConfigured() ? (
+              offering && offering.availablePackages[0] ? (
+                <TouchableOpacity
+                  onPress={handleSubscribe}
+                  disabled={subscribing}
+                  style={{ marginTop: 12, backgroundColor: subscribing ? C.muted : C.blue, borderRadius: 10, padding: 12, alignItems: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                    {subscribing ? '処理中...' : `購読する（${offering.availablePackages[0].product.priceString}）`}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>プランを読み込み中...</Text>
+              )
+            ) : (
+              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>購読機能は準備中です</Text>
+            )}
+            <TouchableOpacity onPress={handleRestore} disabled={subscribing} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+              <Text style={{ fontSize: 12, color: C.blue, fontWeight: '700' }}>購入を復元</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {subMsg !== '' && <Text style={{ fontSize: 12, color: C.sub, marginTop: 10, lineHeight: 16 }}>{subMsg}</Text>}
       </View>
 
       <TouchableOpacity

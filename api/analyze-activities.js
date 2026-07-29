@@ -1,6 +1,13 @@
+import { checkAiEntitlement } from './_lib/entitlement.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const entitlement = await checkAiEntitlement(req)
+  if (!entitlement.ok) {
+    return res.status(entitlement.status).json({ error: entitlement.error })
   }
 
   const { days, activities } = req.body || {}

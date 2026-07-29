@@ -4,6 +4,8 @@ import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { GoalType, TrainingFocus } from './lib/plan'
+import { ensureAppUserRow } from './lib/entitlements'
+import { initPurchases } from './lib/purchases'
 import { C, TABS, styles } from './lib/theme'
 import HomeScreen from './screens/HomeScreen'
 import PlanScreen from './screens/PlanScreen'
@@ -38,6 +40,8 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return
+    ensureAppUserRow(session.user.id)
+    initPurchases(session.user.id)
     supabase.from('ftp_log').select('ftp').order('recorded_at', { ascending: false }).limit(1)
       .then(({ data }: { data: any }) => { setFtp(data && data.length > 0 ? data[0].ftp : 300) })
     AsyncStorage.getItem('user_goals').then(json => {

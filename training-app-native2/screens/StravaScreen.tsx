@@ -12,6 +12,8 @@ import {
   activitiesByLocalDate,
 } from '../lib/strava'
 import { formatDateOnly } from '../lib/plan'
+import { authedPost } from '../lib/apiClient'
+import { AI_PAYWALL_MESSAGE } from '../lib/entitlements'
 import { C, styles } from '../lib/theme'
 
 export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
@@ -25,6 +27,7 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
   const [syncing, setSyncing] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const CLIENT_ID = '260703'
   const VERCEL_CALLBACK = `${VERCEL_BASE}/api/strava-callback`
@@ -141,6 +144,7 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
   async function analyzeWithAI() {
     setAnalyzing(true)
     setAiAnalysis(null)
+    setAiError('')
     try {
       const validToken = await getValidToken()
       if (!validToken) { setAnalyzing(false); return }
@@ -156,11 +160,12 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
         return { date: dateStr, activities: byDate.get(dateStr) || [] }
       })
 
-      const r = await fetch(`${VERCEL_BASE}/api/analyze-activities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days }),
-      })
+      const r = await authedPost(`${VERCEL_BASE}/api/analyze-activities`, { days })
+      if (r.status === 402) {
+        setAiError(AI_PAYWALL_MESSAGE)
+        setAnalyzing(false)
+        return
+      }
       const data = await r.json()
       if (data && !data.error) setAiAnalysis(data)
     } catch {
@@ -305,6 +310,9 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
                   {analyzing ? '⏳ 分析中...' : aiAnalysis ? '🔄 再分析する' : '📊 AIで分析する'}
                 </Text>
               </TouchableOpacity>
+              {aiError !== '' && (
+                <Text style={{ fontSize: 12, color: C.orange, marginTop: 10, lineHeight: 16 }}>🔒 {aiError}</Text>
+              )}
               {aiAnalysis && typeof aiAnalysis === 'object' && (
                 <View style={{ gap: 10 }}>
                   {[

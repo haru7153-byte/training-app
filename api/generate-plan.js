@@ -1,3 +1,5 @@
+import { checkAiEntitlement } from './_lib/entitlement.js'
+
 const DAYS_JP = ['月', '火', '水', '木', '金', '土', '日']
 
 const ZWIFT_WORKOUTS = `Zwift workouts (use ONLY these exact names):
@@ -40,6 +42,11 @@ function focusGuidanceFor(trainingFocus) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const entitlement = await checkAiEntitlement(req)
+  if (!entitlement.ok) {
+    return res.status(entitlement.status).json({ error: entitlement.error })
   }
 
   const {
