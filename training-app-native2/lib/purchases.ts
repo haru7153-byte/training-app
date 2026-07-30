@@ -1,5 +1,5 @@
 import { Platform } from 'react-native'
-import Purchases, { PurchasesPackage, PurchasesOffering } from 'react-native-purchases'
+import type { PurchasesPackage, PurchasesOffering } from 'react-native-purchases'
 
 /**
  * RevenueCatダッシュボード（https://app.revenuecat.com/）で作成したプロジェクトの
@@ -9,6 +9,21 @@ const REVENUECAT_IOS_API_KEY = 'appl_iCaZfLenhbJFLVeWpphFiFfztwp'
 
 let configured = false
 
+// react-native-purchasesは、importされた時点でネイティブモジュールを読み込もうとする。
+// まだそれが組み込まれていないビルド（次のEASビルド待ち）でアプリ全体が起動時に
+// クラッシュしないよう、静的importではなく遅延requireにしてtry/catchで囲む。
+let cachedModule: any = undefined
+
+function getPurchases(): any {
+  if (cachedModule !== undefined) return cachedModule
+  try {
+    cachedModule = require('react-native-purchases').default
+  } catch {
+    cachedModule = null
+  }
+  return cachedModule
+}
+
 export function isPurchasesConfigured(): boolean {
   return REVENUECAT_IOS_API_KEY.length > 0
 }
@@ -16,6 +31,8 @@ export function isPurchasesConfigured(): boolean {
 /** ログイン確定後に一度呼ぶ。RevenueCat側のappUserIDをSupabaseのuser_idに合わせておくと、Webhookでの紐付けが単純になる。 */
 export async function initPurchases(userId: string): Promise<void> {
   if (Platform.OS !== 'ios' || !isPurchasesConfigured() || configured) return
+  const Purchases = getPurchases()
+  if (!Purchases) return
   try {
     Purchases.configure({ apiKey: REVENUECAT_IOS_API_KEY, appUserID: userId })
     configured = true
@@ -23,7 +40,8 @@ export async function initPurchases(userId: string): Promise<void> {
 }
 
 export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
-  if (!isPurchasesConfigured()) return null
+  const Purchases = getPurchases()
+  if (!Purchases || !isPurchasesConfigured()) return null
   try {
     const offerings = await Purchases.getOfferings()
     return offerings.current
@@ -33,7 +51,8 @@ export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
 }
 
 export async function purchasePackage(pkg: PurchasesPackage): Promise<{ ok: boolean; error?: string }> {
-  if (!isPurchasesConfigured()) return { ok: false, error: 'not_configured' }
+  const Purchases = getPurchases()
+  if (!Purchases || !isPurchasesConfigured()) return { ok: false, error: 'not_configured' }
   try {
     await Purchases.purchasePackage(pkg)
     return { ok: true }
@@ -44,7 +63,8 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<{ ok: bool
 }
 
 export async function restorePurchases(): Promise<{ ok: boolean; error?: string }> {
-  if (!isPurchasesConfigured()) return { ok: false, error: 'not_configured' }
+  const Purchases = getPurchases()
+  if (!Purchases || !isPurchasesConfigured()) return { ok: false, error: 'not_configured' }
   try {
     await Purchases.restorePurchases()
     return { ok: true }

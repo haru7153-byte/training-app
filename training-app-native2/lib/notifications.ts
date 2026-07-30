@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const STORAGE_KEY = 'notification_settings'
@@ -11,18 +10,29 @@ export interface NotificationSettings {
 
 const DEFAULT_SETTINGS: NotificationSettings = { enabled: false, hour: 20, minute: 0 }
 
-// ネイティブモジュールがまだ組み込まれていないdev-clientビルドでも、アプリ全体が
-// 起動時にクラッシュしないようにtry/catchで囲む（次のEASビルドまでの間の保険）。
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
-  })
-} catch {}
+// expo-notificationsは、importされた時点でネイティブモジュール（ExpoPushTokenManager等）を
+// 読み込もうとする。まだそれが組み込まれていないビルド（次のEASビルド待ち）でアプリ全体が
+// 起動時にクラッシュしないよう、静的importではなく遅延requireにしてtry/catchで囲む。
+let cachedModule: any = undefined
+
+function getNotifications(): any {
+  if (cachedModule !== undefined) return cachedModule
+  try {
+    const mod = require('expo-notifications')
+    mod.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    })
+    cachedModule = mod
+  } catch {
+    cachedModule = null
+  }
+  return cachedModule
+}
 
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   const json = await AsyncStorage.getItem(STORAGE_KEY)
@@ -42,7 +52,12 @@ export async function loadNotificationSettings(): Promise<NotificationSettings> 
 /** 通知設定を反映する：オンなら（必要に応じて許可をリクエストして）毎日の通知を予約、オフなら全て取り消す。設定はAsyncStorageに保存される。 */
 export async function applyNotificationSettings(
   settings: NotificationSettings
-): Promise<{ ok: boolean; reason?: 'permission_denied' }> {
+): Promise<{ ok: boolean; reason?: 'permission_denied' | 'unavailable' }> {
+  const Notifications = getNotifications()
+  if (!Notifications) {
+    return { ok: false, reason: 'unavailable' }
+  }
+
   await Notifications.cancelAllScheduledNotificationsAsync()
 
   if (!settings.enabled) {

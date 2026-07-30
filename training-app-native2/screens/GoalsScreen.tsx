@@ -7,7 +7,7 @@ import { GoalType, TrainingFocus } from '../lib/plan'
 import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
 import { getEntitlementInfo, EntitlementInfo } from '../lib/entitlements'
 import { isPurchasesConfigured, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
-import { PurchasesOffering } from 'react-native-purchases'
+import type { PurchasesOffering } from 'react-native-purchases'
 import { C, styles } from '../lib/theme'
 
 type TssTier = 'light' | 'standard' | 'hard'
@@ -80,7 +80,11 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
       setNotifMinute(next.minute)
     } else {
       setNotifEnabled(false)
-      setNotifMsg('⚠️ 通知が許可されていません。端末の設定アプリからこのアプリの通知を許可してください。')
+      setNotifMsg(
+        result.reason === 'unavailable'
+          ? '⚠️ このビルドには通知機能がまだ含まれていません。次のアップデートをお待ちください。'
+          : '⚠️ 通知が許可されていません。端末の設定アプリからこのアプリの通知を許可してください。'
+      )
     }
     setNotifSaving(false)
   }
