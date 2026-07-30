@@ -11,14 +11,18 @@ export interface NotificationSettings {
 
 const DEFAULT_SETTINGS: NotificationSettings = { enabled: false, hour: 20, minute: 0 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-})
+// ネイティブモジュールがまだ組み込まれていないdev-clientビルドでも、アプリ全体が
+// 起動時にクラッシュしないようにtry/catchで囲む（次のEASビルドまでの間の保険）。
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  })
+} catch {}
 
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   const json = await AsyncStorage.getItem(STORAGE_KEY)
