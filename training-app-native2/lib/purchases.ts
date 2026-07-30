@@ -5,12 +5,12 @@ import Purchases, { PurchasesPackage, PurchasesOffering } from 'react-native-pur
  * RevenueCatダッシュボード（https://app.revenuecat.com/）で作成したプロジェクトの
  * Public SDK Key（Apple App Store用）に置き換えること。未設定の間、購読機能は無効化される。
  */
-const REVENUECAT_IOS_API_KEY = 'YOUR_REVENUECAT_IOS_PUBLIC_SDK_KEY'
+const REVENUECAT_IOS_API_KEY = 'appl_iCaZfLenhbJFLVeWpphFiFfztwp'
 
 let configured = false
 
 export function isPurchasesConfigured(): boolean {
-  return REVENUECAT_IOS_API_KEY !== 'YOUR_REVENUECAT_IOS_PUBLIC_SDK_KEY'
+  return REVENUECAT_IOS_API_KEY.length > 0
 }
 
 /** ログイン確定後に一度呼ぶ。RevenueCat側のappUserIDをSupabaseのuser_idに合わせておくと、Webhookでの紐付けが単純になる。 */
