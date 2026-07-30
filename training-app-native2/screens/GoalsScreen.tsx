@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 import { GoalType, TrainingFocus } from '../lib/plan'
 import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
 import { getEntitlementInfo, EntitlementInfo } from '../lib/entitlements'
-import { isPurchasesConfigured, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
+import { isPurchasesConfigured, isPurchasesAvailable, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
 import type { PurchasesOffering } from 'react-native-purchases'
 import { C, styles } from '../lib/theme'
 
@@ -675,26 +675,30 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
 
         {!entitlement?.subscribed && (
           <>
-            {isPurchasesConfigured() ? (
-              offering && offering.availablePackages[0] ? (
-                <TouchableOpacity
-                  onPress={handleSubscribe}
-                  disabled={subscribing}
-                  style={{ marginTop: 12, backgroundColor: subscribing ? C.muted : C.blue, borderRadius: 10, padding: 12, alignItems: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
-                    {subscribing ? '処理中...' : `購読する（${offering.availablePackages[0].product.priceString}）`}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>プランを読み込み中...</Text>
-              )
-            ) : (
+            {!isPurchasesConfigured() ? (
               <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>購読機能は準備中です</Text>
+            ) : !isPurchasesAvailable() ? (
+              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, lineHeight: 16 }}>
+                このビルドには購読機能がまだ含まれていません。次のアップデートをお待ちください。
+              </Text>
+            ) : offering && offering.availablePackages[0] ? (
+              <TouchableOpacity
+                onPress={handleSubscribe}
+                disabled={subscribing}
+                style={{ marginTop: 12, backgroundColor: subscribing ? C.muted : C.blue, borderRadius: 10, padding: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                  {subscribing ? '処理中...' : `購読する（${offering.availablePackages[0].product.priceString}）`}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>プランを読み込み中...</Text>
             )}
-            <TouchableOpacity onPress={handleRestore} disabled={subscribing} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
-              <Text style={{ fontSize: 12, color: C.blue, fontWeight: '700' }}>購入を復元</Text>
-            </TouchableOpacity>
+            {isPurchasesAvailable() && (
+              <TouchableOpacity onPress={handleRestore} disabled={subscribing} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                <Text style={{ fontSize: 12, color: C.blue, fontWeight: '700' }}>購入を復元</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 

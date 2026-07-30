@@ -28,6 +28,11 @@ export function isPurchasesConfigured(): boolean {
   return REVENUECAT_IOS_API_KEY.length > 0
 }
 
+/** APIキーは設定済みでも、このビルドにネイティブモジュールが組み込まれていなければfalse（次のEASビルド待ち）。 */
+export function isPurchasesAvailable(): boolean {
+  return isPurchasesConfigured() && getPurchases() !== null
+}
+
 /** ログイン確定後に一度呼ぶ。RevenueCat側のappUserIDをSupabaseのuser_idに合わせておくと、Webhookでの紐付けが単純になる。 */
 export async function initPurchases(userId: string): Promise<void> {
   if (Platform.OS !== 'ios' || !isPurchasesConfigured() || configured) return
