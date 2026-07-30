@@ -1,3 +1,4 @@
+import { LogBox } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const STORAGE_KEY = 'notification_settings'
@@ -29,6 +30,8 @@ function getNotifications(): any {
     })
     cachedModule = mod
   } catch {
+    // 次のビルドでネイティブモジュールが入るまでの間だけ出る、実害のない赤画面を抑制する。
+    LogBox.ignoreLogs(["Cannot find native module 'ExpoPushTokenManager'"])
     cachedModule = null
   }
   return cachedModule
