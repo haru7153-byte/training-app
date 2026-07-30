@@ -9,9 +9,9 @@ const REVENUECAT_IOS_API_KEY = 'appl_iCaZfLenhbJFLVeWpphFiFfztwp'
 
 let configured = false
 
-// react-native-purchasesは、importされた時点でネイティブモジュールを読み込もうとする。
-// まだそれが組み込まれていないビルド（次のEASビルド待ち）でアプリ全体が起動時に
-// クラッシュしないよう、静的importではなく遅延requireにしてtry/catchで囲む。
+// 万が一に備え、静的importではなく遅延requireにしてtry/catchで囲む
+// （react-native-purchases自体はimport時にクラッシュしないが、パッケージ内部で
+// ネイティブモジュール未組み込みを検知して各メソッドが失敗する作りになっている）。
 let cachedModule: any = undefined
 
 function getPurchases(): any {
@@ -26,11 +26,6 @@ function getPurchases(): any {
 
 export function isPurchasesConfigured(): boolean {
   return REVENUECAT_IOS_API_KEY.length > 0
-}
-
-/** APIキーは設定済みでも、このビルドにネイティブモジュールが組み込まれていなければfalse（次のEASビルド待ち）。 */
-export function isPurchasesAvailable(): boolean {
-  return isPurchasesConfigured() && getPurchases() !== null
 }
 
 /** ログイン確定後に一度呼ぶ。RevenueCat側のappUserIDをSupabaseのuser_idに合わせておくと、Webhookでの紐付けが単純になる。 */

@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 import { GoalType, TrainingFocus } from '../lib/plan'
 import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
 import { getEntitlementInfo, EntitlementInfo } from '../lib/entitlements'
-import { isPurchasesConfigured, isPurchasesAvailable, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
+import { isPurchasesConfigured, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
 import type { PurchasesOffering } from 'react-native-purchases'
 import { C, styles } from '../lib/theme'
 
@@ -91,12 +91,16 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
 
   const [entitlement, setEntitlement] = useState<EntitlementInfo | null>(null)
   const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [offeringLoaded, setOfferingLoaded] = useState(false)
   const [subscribing, setSubscribing] = useState(false)
   const [subMsg, setSubMsg] = useState('')
 
   useEffect(() => {
     refreshEntitlement()
-    getCurrentOffering().then(setOffering)
+    getCurrentOffering().then(o => {
+      setOffering(o)
+      setOfferingLoaded(true)
+    })
   }, [])
 
   function refreshEntitlement() {
@@ -677,10 +681,8 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
           <>
             {!isPurchasesConfigured() ? (
               <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>購読機能は準備中です</Text>
-            ) : !isPurchasesAvailable() ? (
-              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, lineHeight: 16 }}>
-                このビルドには購読機能がまだ含まれていません。次のアップデートをお待ちください。
-              </Text>
+            ) : !offeringLoaded ? (
+              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>プランを読み込み中...</Text>
             ) : offering && offering.availablePackages[0] ? (
               <TouchableOpacity
                 onPress={handleSubscribe}
@@ -692,9 +694,11 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>プランを読み込み中...</Text>
+              <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, lineHeight: 16 }}>
+                このビルドでは購読機能をまだ利用できません。次のアップデートをお待ちください。
+              </Text>
             )}
-            {isPurchasesAvailable() && (
+            {offeringLoaded && offering && offering.availablePackages[0] && (
               <TouchableOpacity onPress={handleRestore} disabled={subscribing} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
                 <Text style={{ fontSize: 12, color: C.blue, fontWeight: '700' }}>購入を復元</Text>
               </TouchableOpacity>
