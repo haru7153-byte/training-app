@@ -8,6 +8,9 @@ const SUPABASE_ANON_KEY =
 /** AI機能はサインアップから何日間無料か。lib/entitlements.ts（クライアント側）と値を揃えること。 */
 const AI_TRIAL_DAYS = 30
 
+/** 1ユーザーが1日に呼べるAI機能の上限。通常利用では届かない値だが、暴走・連打によるコスト増を防ぐ。 */
+const DAILY_AI_LIMIT = 50
+
 /**
  * リクエストのAuthorizationヘッダーからSupabaseユーザーを検証し、
  * トライアル中または購読中であればokを返す。それ以外は402扱いにする。
@@ -45,5 +48,20 @@ export async function checkAiEntitlement(req) {
     (!sub.expires_at || new Date(sub.expires_at) > new Date())
 
   if (!trialActive && !subscribed) return { ok: false, status: 402, error: 'subscription_required' }
+
+  // 1日あたりの呼び出し回数を記録・チェックする（RPCはsecurity definerなのでRLSを介さず加算できる）。
+  const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_ai_usage`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_user_id: userId }),
+  })
+  if (rpcRes.ok) {
+    const newCount = await rpcRes.json()
+    if (typeof newCount === 'number' && newCount > DAILY_AI_LIMIT) {
+      return { ok: false, status: 429, error: 'rate_limited' }
+    }
+  }
+  // RPC自体が失敗した場合（マイグレーション未適用等）は、制限なしで通す（機能停止よりは安全側）。
+
   return { ok: true, userId }
 }

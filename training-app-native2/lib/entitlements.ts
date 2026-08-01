@@ -4,6 +4,14 @@ import { supabase } from './supabase'
 export const AI_TRIAL_DAYS = 30
 
 export const AI_PAYWALL_MESSAGE = 'AI機能の無料期間が終了しました。目標タブから購読すると引き続き使えます。'
+export const AI_RATE_LIMIT_MESSAGE = '本日のAI機能の利用回数の上限に達しました。しばらくしてからもう一度お試しください。'
+
+/** AI系エンドポイントの非2xxレスポンスを、ステータスコードに応じたメッセージに変換する。 */
+export function aiErrorMessage(status: number): string {
+  if (status === 402) return AI_PAYWALL_MESSAGE
+  if (status === 429) return AI_RATE_LIMIT_MESSAGE
+  return `エラーが発生しました（${status}）。もう一度お試しください。`
+}
 
 export interface EntitlementInfo {
   hasAiAccess: boolean

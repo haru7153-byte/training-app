@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { GoalType, TrainingFocus } from './lib/plan'
 import { ensureAppUserRow } from './lib/entitlements'
 import { initPurchases } from './lib/purchases'
+import { initCrashReporting, wrapWithCrashReporting } from './lib/crashReporting'
 import { C, TABS, styles } from './lib/theme'
 import HomeScreen from './screens/HomeScreen'
 import PlanScreen from './screens/PlanScreen'
@@ -14,7 +15,9 @@ import WeightScreen from './screens/WeightScreen'
 import GoalsScreen from './screens/GoalsScreen'
 import AuthScreen from './screens/AuthScreen'
 
-export default function App() {
+initCrashReporting()
+
+function App() {
   const [tab, setTab] = useState('home')
   const [ftp, setFtp] = useState(300)
   const [goals, setGoals] = useState({
@@ -103,3 +106,5 @@ export default function App() {
     </SafeAreaView>
   )
 }
+
+export default wrapWithCrashReporting(App)

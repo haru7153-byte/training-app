@@ -13,7 +13,7 @@ import {
 } from '../lib/strava'
 import { formatDateOnly } from '../lib/plan'
 import { authedPost } from '../lib/apiClient'
-import { AI_PAYWALL_MESSAGE } from '../lib/entitlements'
+import { aiErrorMessage } from '../lib/entitlements'
 import { C, styles } from '../lib/theme'
 
 export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: number) => void }) {
@@ -162,7 +162,7 @@ export default function StravaScreen({ onFtpUpdate }: { onFtpUpdate: (ftp: numbe
 
       const r = await authedPost(`${VERCEL_BASE}/api/analyze-activities`, { days })
       if (!r.ok) {
-        setAiError(r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`)
+        setAiError(aiErrorMessage(r.status))
         setAnalyzing(false)
         return
       }

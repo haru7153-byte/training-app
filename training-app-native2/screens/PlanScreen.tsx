@@ -35,7 +35,7 @@ import {
 } from '../lib/plan'
 import { C, styles, PHASE_COLORS, ZONE_COLORS, REVIEW_LABELS, weekColor } from '../lib/theme'
 import { authedPost } from '../lib/apiClient'
-import { AI_PAYWALL_MESSAGE } from '../lib/entitlements'
+import { aiErrorMessage } from '../lib/entitlements'
 
 interface DayAnalysisResult {
   status: string
@@ -347,7 +347,7 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
         ftpTestDay: week.ftp_test_day,
       })
       if (!r.ok) {
-        setWeekGenError(r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`)
+        setWeekGenError(aiErrorMessage(r.status))
         setGeneratingWeek(false)
         return
       }
@@ -407,7 +407,7 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
       if (!r.ok) {
         setAiErrorByDay(prev => ({
           ...prev,
-          [day.id]: r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`,
+          [day.id]: aiErrorMessage(r.status),
         }))
         setReviewingDayId(null)
         return
@@ -470,7 +470,7 @@ export default function PlanScreen({ ftp, goalFtp, goalTSS, goal, autoOpenRecrea
       if (!r.ok) {
         setAiErrorByDay(prev => ({
           ...prev,
-          [day.id]: r.status === 402 ? AI_PAYWALL_MESSAGE : `エラーが発生しました（${r.status}）。もう一度お試しください。`,
+          [day.id]: aiErrorMessage(r.status),
         }))
         setAnalyzingDayId(null)
         return
