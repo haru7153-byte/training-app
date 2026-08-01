@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, Switch } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, Switch, Alert } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as WebBrowser from 'expo-web-browser'
 import { supabase } from '../lib/supabase'
 import { GoalType, TrainingFocus } from '../lib/plan'
 import { loadNotificationSettings, applyNotificationSettings, NotificationSettings } from '../lib/notifications'
 import { getEntitlementInfo, EntitlementInfo } from '../lib/entitlements'
 import { isPurchasesConfigured, getCurrentOffering, purchasePackage, restorePurchases } from '../lib/purchases'
+import { deleteAccount } from '../lib/account'
 import type { PurchasesOffering } from 'react-native-purchases'
 import { C, styles } from '../lib/theme'
+
+const PRIVACY_POLICY_URL = 'https://training-app-pi-peach.vercel.app/privacy.html'
+const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
 
 type TssTier = 'light' | 'standard' | 'hard'
 
@@ -94,6 +99,8 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
   const [offeringLoaded, setOfferingLoaded] = useState(false)
   const [subscribing, setSubscribing] = useState(false)
   const [subMsg, setSubMsg] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     refreshEntitlement()
@@ -133,6 +140,39 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
       setSubMsg('復元できる購入が見つかりませんでした。')
     }
     setSubscribing(false)
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'アカウントを削除しますか？',
+      'プラン・体重記録・Strava連携などすべてのデータが完全に削除されます。この操作は取り消せません。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '次へ', style: 'destructive', onPress: confirmDeleteAccountFinal },
+      ]
+    )
+  }
+
+  function confirmDeleteAccountFinal() {
+    Alert.alert(
+      '本当に削除しますか？',
+      'もう一度確認します。この操作は取り消せません。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '削除する', style: 'destructive', onPress: handleDeleteAccount },
+      ]
+    )
+  }
+
+  async function handleDeleteAccount() {
+    setDeletingAccount(true)
+    setDeleteError('')
+    const result = await deleteAccount()
+    if (!result.ok) {
+      setDeleteError('削除に失敗しました。もう一度お試しください。')
+      setDeletingAccount(false)
+    }
+    // 成功時はdeleteAccount()内でsignOutされ、AuthScreenに遷移するのでここでは何もしない。
   }
 
   function selectGoalPreset(idx: number) {
@@ -655,9 +695,18 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>💳 プラン</Text>
-        <Text style={{ fontSize: 12, color: C.sub, marginTop: -6, marginBottom: 12, lineHeight: 16 }}>
+        <Text style={{ fontSize: 12, color: C.sub, marginTop: -6, marginBottom: 8, lineHeight: 16 }}>
           プラン・体重記録・Strava連携などの基本機能はずっと無料です。AI機能（プラン自動生成・週次/日次分析）だけ、サインアップから30日間の無料期間のあと購読が必要になります。
         </Text>
+
+        <View style={{ flexDirection: 'row', gap: 14, marginBottom: 12 }}>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}>
+            <Text style={{ fontSize: 11, color: C.blue, fontWeight: '700' }}>プライバシーポリシー</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}>
+            <Text style={{ fontSize: 11, color: C.blue, fontWeight: '700' }}>利用規約</Text>
+          </TouchableOpacity>
+        </View>
 
         {!entitlement ? (
           <Text style={{ fontSize: 12, color: C.muted }}>読み込み中...</Text>
@@ -693,7 +742,13 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
                   {subscribing ? '処理中...' : `購読する（${offering.availablePackages[0].product.priceString}）`}
                 </Text>
               </TouchableOpacity>
-            ) : (
+            ) : null}
+            {offeringLoaded && offering && offering.availablePackages[0] && (
+              <Text style={{ fontSize: 10.5, color: C.muted, marginTop: 8, lineHeight: 15 }}>
+                {'購読は自動更新されます。次回更新の24時間前までに「設定 > Apple ID > サブスクリプション」から解約しない限り、期間終了時に同一料金で自動的に更新されます。料金は表示された金額（税込）です。'}
+              </Text>
+            )}
+            {isPurchasesConfigured() && offeringLoaded && !(offering && offering.availablePackages[0]) && (
               <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, lineHeight: 16 }}>
                 このビルドでは購読機能をまだ利用できません。次のアップデートをお待ちください。
               </Text>
@@ -720,6 +775,19 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
         <Text style={{ fontSize: 14 }}>🚪</Text>
         <Text style={{ fontSize: 13, color: C.red, fontWeight: '700' }}>ログアウト</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={confirmDeleteAccount}
+        disabled={deletingAccount}
+        style={{ marginTop: 10, alignItems: 'center', padding: 10 }}
+      >
+        <Text style={{ fontSize: 12, color: C.muted, fontWeight: '700' }}>
+          {deletingAccount ? '削除中...' : 'アカウントを削除'}
+        </Text>
+      </TouchableOpacity>
+      {deleteError !== '' && (
+        <Text style={{ fontSize: 12, color: C.red, textAlign: 'center', marginTop: 4 }}>{deleteError}</Text>
+      )}
     </ScrollView>
     </KeyboardAvoidingView>
   )
