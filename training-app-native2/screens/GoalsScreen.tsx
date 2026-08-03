@@ -169,7 +169,7 @@ export default function GoalsScreen({ ftp, onGoalsChange, onFtpUpdate }: {
     setDeleteError('')
     const result = await deleteAccount()
     if (!result.ok) {
-      setDeleteError('削除に失敗しました。もう一度お試しください。')
+      setDeleteError(`削除に失敗しました: ${result.error || '不明なエラー'}`)
       setDeletingAccount(false)
     }
     // 成功時はdeleteAccount()内でsignOutされ、AuthScreenに遷移するのでここでは何もしない。
