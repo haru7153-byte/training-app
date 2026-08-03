@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native'
 import Svg, { Polyline, Line, Circle, Defs, LinearGradient, Stop, Polygon, Text as SvgText, G } from 'react-native-svg'
 import DateTimePicker from '@react-native-community/datetimepicker'
-import { requestAuthorization, getMostRecentQuantitySample, saveQuantitySample } from '@kingstinct/react-native-healthkit'
+import { requestHealthKitAuthorization, getMostRecentWeightSample, saveWeightSample } from '../lib/healthkit'
 import { supabase } from '../lib/supabase'
 import { C, styles } from '../lib/theme'
 
@@ -26,7 +26,7 @@ export default function WeightScreen({ goalWeight }: { goalWeight: number }) {
     if (Platform.OS !== 'ios') return
     try {
       const d = new Date(dateStr)
-      await saveQuantitySample('HKQuantityTypeIdentifierBodyMass', 'kg', value, d, d)
+      await saveWeightSample(value, d)
     } catch {}
   }
 
@@ -34,11 +34,11 @@ export default function WeightScreen({ goalWeight }: { goalWeight: number }) {
     setHealthSyncing(true)
     setHealthMsg('')
     try {
-      await requestAuthorization({
+      await requestHealthKitAuthorization({
         toRead: ['HKQuantityTypeIdentifierBodyMass'],
         toShare: ['HKQuantityTypeIdentifierBodyMass'],
       })
-      const sample = await getMostRecentQuantitySample('HKQuantityTypeIdentifierBodyMass', 'kg')
+      const sample = await getMostRecentWeightSample()
       if (!sample) {
         setHealthMsg('ℹ️ ヘルスケアに体重データがありません')
       } else {
