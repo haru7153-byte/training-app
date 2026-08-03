@@ -50,7 +50,7 @@ export default function AuthScreen() {
             {stage === 'email' ? (
               <>
                 <TextInput
-                  style={[styles.input, { fontSize: 14, paddingVertical: 9 }]}
+                  style={[styles.input, { flex: 0, fontSize: 14, paddingVertical: 9 }]}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="you@example.com"
